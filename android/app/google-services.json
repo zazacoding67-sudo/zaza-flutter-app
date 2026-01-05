@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "977849821776",
+    "project_id": "zaza-asset-management-fyp",
+    "storage_bucket": "zaza-asset-management-fyp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:977849821776:android:aef97b87f61620ad8dff55",
+        "android_client_info": {
+          "package_name": "com.zaza.assetmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6jw2UG68Lmr74Y8IuAQCNefszuaSRL9o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
