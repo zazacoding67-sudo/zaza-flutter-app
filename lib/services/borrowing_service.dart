@@ -1,267 +1,413 @@
-// lib/services/borrowing_service.dart
+// Save this as: lib/services/borrowing_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/borrowing.dart';
-import '../models/asset.dart';
-import '../models/user.dart';
 
 class BorrowingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Create borrowing request
-  Future<String?> createBorrowingRequest({
+  // ==================== CREATE BORROW REQUEST ====================
+
+  // User requests to borrow an asset
+  Future<String> createBorrowRequest({
     required String assetId,
-    required String userId,
-    required DateTime dueDate,
+    required String assetName,
+    required DateTime expectedReturnDate,
+    required String purpose,
     String? notes,
   }) async {
     try {
-      // Get asset and user details
-      final assetDoc = await _firestore.collection('assets').doc(assetId).get();
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      
-      if (!assetDoc.exists || !userDoc.exists) {
-        debugPrint('Asset or user not found');
-        return null;
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
       }
-      
-      final asset = Asset.fromFirestore(assetDoc.data()!, documentId: assetDoc.id);
-      final user = User.fromFirestore(userDoc.data()!, documentId: userDoc.id);
-      
+
+      // Get user details
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      final userData = userDoc.data();
+
+      if (userData == null) {
+        throw Exception('User data not found');
+      }
+
       // Check if asset is available
-      if (asset.status != 'available') {
-        debugPrint('Asset not available');
-        return null;
+      final assetDoc = await _firestore.collection('assets').doc(assetId).get();
+      final assetData = assetDoc.data();
+
+      if (assetData == null) {
+        throw Exception('Asset not found');
       }
-      
-      // Create borrowing record
-      final borrowing = Borrowing(
-        id: '',
-        assetId: assetId,
-        assetName: asset.name,
-        userId: userId,
-        userName: user.name,
-        userEmail: user.email,
-        borrowDate: DateTime.now(),
-        dueDate: dueDate,
-        status: 'pending',
-        notes: notes,
-        approvedBy: userId, // Will be updated when approved
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      
-      final docRef = await _firestore.collection('borrowings').add(borrowing.toFirestore());
-      
+
+      if (assetData['status'] != 'Available') {
+        throw Exception('Asset is not available for borrowing');
+      }
+
+      // Create borrowing request
+      final borrowingData = {
+        'assetId': assetId,
+        'assetName': assetName,
+        'userId': currentUser.uid,
+        'userName': userData['name'] ?? 'Unknown',
+        'userEmail': userData['email'] ?? currentUser.email,
+        'requestedDate': FieldValue.serverTimestamp(),
+        'expectedReturnDate': Timestamp.fromDate(expectedReturnDate),
+        'status': 'pending', // Waiting for admin approval
+        'purpose': purpose,
+        'notes': notes,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      final docRef = await _firestore
+          .collection('borrowings')
+          .add(borrowingData);
+
       // Log activity
       await _logActivity(
-        action: 'borrowing_requested',
-        performedBy: userId,
-        details: {'borrowingId': docRef.id, 'assetName': asset.name},
+        action: 'Borrow Request Created',
+        description: 'Requested to borrow: $assetName',
+        userId: currentUser.uid,
       );
-      
+
       return docRef.id;
     } catch (e) {
-      debugPrint('Error creating borrowing request: $e');
-      return null;
+      throw Exception('Failed to create borrow request: $e');
     }
   }
 
-  // Approve borrowing (Staff/Admin only)
-  Future<bool> approveBorrowing(String borrowingId, String approvedById) async {
+  // ==================== ADMIN ACTIONS ====================
+
+  // Admin approves a borrow request
+  Future<void> approveBorrowRequest(String borrowingId) async {
     try {
-      final borrowingDoc = await _firestore.collection('borrowings').doc(borrowingId).get();
-      if (!borrowingDoc.exists) return false;
-      
-      final borrowing = Borrowing.fromFirestore(borrowingDoc.data()!, documentId: borrowingDoc.id);
-      
-      // Update borrowing status
-      await _firestore.collection('borrowings').doc(borrowingId).update({
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      // Get borrowing details
+      final borrowingDoc = await _firestore
+          .collection('borrowings')
+          .doc(borrowingId)
+          .get();
+      final borrowingData = borrowingDoc.data();
+
+      if (borrowingData == null) {
+        throw Exception('Borrowing request not found');
+      }
+
+      final assetId = borrowingData['assetId'];
+
+      // Start a batch write for atomic operations
+      final batch = _firestore.batch();
+
+      // Update borrowing status to active
+      batch.update(_firestore.collection('borrowings').doc(borrowingId), {
         'status': 'active',
-        'approvedBy': approvedById,
-        'borrowDate': FieldValue.serverTimestamp(),
+        'approvedBy': currentUser.uid,
+        'approvedDate': FieldValue.serverTimestamp(),
+        'borrowedDate': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
-      // Update asset status
-      await _firestore.collection('assets').doc(borrowing.assetId).update({
-        'status': 'borrowed',
-        'assignedTo': borrowing.userId,
+
+      // Update asset status to "In Use"
+      batch.update(_firestore.collection('assets').doc(assetId), {
+        'status': 'In Use',
+        'borrowedBy': borrowingData['userId'],
+        'borrowedAt': FieldValue.serverTimestamp(),
+        'expectedReturnDate': borrowingData['expectedReturnDate'],
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
+
+      // Commit the batch
+      await batch.commit();
+
       // Log activity
       await _logActivity(
-        action: 'borrowing_approved',
-        performedBy: approvedById,
-        details: {'borrowingId': borrowingId, 'assetName': borrowing.assetName},
+        action: 'Borrow Request Approved',
+        description: 'Approved borrowing: ${borrowingData['assetName']}',
+        userId: borrowingData['userId'],
       );
-      
-      return true;
     } catch (e) {
-      debugPrint('Error approving borrowing: $e');
-      return false;
+      throw Exception('Failed to approve borrow request: $e');
     }
   }
 
-  // Reject borrowing
-  Future<bool> rejectBorrowing(String borrowingId, String rejectedById) async {
+  // Admin rejects a borrow request
+  Future<void> rejectBorrowRequest(String borrowingId, String reason) async {
     try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      // Get borrowing details
+      final borrowingDoc = await _firestore
+          .collection('borrowings')
+          .doc(borrowingId)
+          .get();
+      final borrowingData = borrowingDoc.data();
+
+      if (borrowingData == null) {
+        throw Exception('Borrowing request not found');
+      }
+
+      // Update borrowing status
       await _firestore.collection('borrowings').doc(borrowingId).update({
         'status': 'rejected',
+        'rejectedBy': currentUser.uid,
+        'rejectionReason': reason,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
+
       // Log activity
       await _logActivity(
-        action: 'borrowing_rejected',
-        performedBy: rejectedById,
-        details: {'borrowingId': borrowingId},
+        action: 'Borrow Request Rejected',
+        description:
+            'Rejected borrowing: ${borrowingData['assetName']} - Reason: $reason',
+        userId: borrowingData['userId'],
       );
-      
-      return true;
     } catch (e) {
-      debugPrint('Error rejecting borrowing: $e');
-      return false;
+      throw Exception('Failed to reject borrow request: $e');
     }
   }
 
-  // Return asset
-  Future<bool> returnAsset({
-    required String borrowingId,
-    required String returnedToId,
-    String? returnNotes,
-  }) async {
+  // ==================== RETURN ASSET ====================
+
+  // User/Admin marks asset as returned
+  Future<void> returnAsset(String borrowingId) async {
     try {
-      final borrowingDoc = await _firestore.collection('borrowings').doc(borrowingId).get();
-      if (!borrowingDoc.exists) return false;
-      
-      final borrowing = Borrowing.fromFirestore(borrowingDoc.data()!, documentId: borrowingDoc.id);
-      
-      // Update borrowing status
-      await _firestore.collection('borrowings').doc(borrowingId).update({
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      // Get borrowing details
+      final borrowingDoc = await _firestore
+          .collection('borrowings')
+          .doc(borrowingId)
+          .get();
+      final borrowingData = borrowingDoc.data();
+
+      if (borrowingData == null) {
+        throw Exception('Borrowing record not found');
+      }
+
+      final assetId = borrowingData['assetId'];
+
+      // Start a batch write
+      final batch = _firestore.batch();
+
+      // Update borrowing status to returned
+      batch.update(_firestore.collection('borrowings').doc(borrowingId), {
         'status': 'returned',
-        'returnDate': FieldValue.serverTimestamp(),
-        'returnedTo': returnedToId,
-        'returnNotes': returnNotes,
+        'actualReturnDate': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
-      // Update asset status
-      await _firestore.collection('assets').doc(borrowing.assetId).update({
-        'status': 'available',
-        'assignedTo': null,
+
+      // Update asset status back to Available
+      batch.update(_firestore.collection('assets').doc(assetId), {
+        'status': 'Available',
+        'borrowedBy': null,
+        'borrowedAt': null,
+        'expectedReturnDate': null,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      
+
+      // Commit the batch
+      await batch.commit();
+
       // Log activity
       await _logActivity(
-        action: 'asset_returned',
-        performedBy: returnedToId,
-        details: {
-          'borrowingId': borrowingId,
-          'assetName': borrowing.assetName,
-          'userId': borrowing.userId,
-        },
+        action: 'Asset Returned',
+        description: 'Returned: ${borrowingData['assetName']}',
+        userId: borrowingData['userId'],
       );
-      
-      return true;
     } catch (e) {
-      debugPrint('Error returning asset: $e');
-      return false;
+      throw Exception('Failed to return asset: $e');
     }
   }
 
-  // Get user's borrowings stream
-  Stream<List<Borrowing>> getUserBorrowingsStream(String userId) {
-    return _firestore
-        .collection('borrowings')
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
-            .toList());
+  // ==================== GET BORROWINGS ====================
+
+  // Get all pending requests (for admin)
+  Future<List<Borrowing>> getPendingRequests() async {
+    try {
+      final snapshot = await _firestore
+          .collection('borrowings')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('requestedDate', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get pending requests: $e');
+    }
   }
 
-  // Get all borrowings stream
-  Stream<List<Borrowing>> getAllBorrowingsStream() {
-    return _firestore
-        .collection('borrowings')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
-            .toList());
+  // Get all active borrowings
+  Future<List<Borrowing>> getActiveBorrowings() async {
+    try {
+      final snapshot = await _firestore
+          .collection('borrowings')
+          .where('status', isEqualTo: 'active')
+          .orderBy('borrowedDate', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get active borrowings: $e');
+    }
   }
 
-  // Get active borrowings stream
-  Stream<List<Borrowing>> getActiveBorrowingsStream() {
-    return _firestore
-        .collection('borrowings')
-        .where('status', isEqualTo: 'active')
-        .orderBy('dueDate', descending: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
-            .toList());
+  // Get user's borrowing history
+  Future<List<Borrowing>> getUserBorrowings(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('borrowings')
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get user borrowings: $e');
+    }
   }
 
-  // Get pending borrowings stream
-  Stream<List<Borrowing>> getPendingBorrowingsStream() {
-    return _firestore
-        .collection('borrowings')
-        .where('status', isEqualTo: 'pending')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
-            .toList());
+  // Get current user's active borrowings
+  Future<List<Borrowing>> getMyActiveBorrowings() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      final snapshot = await _firestore
+          .collection('borrowings')
+          .where('userId', isEqualTo: currentUser.uid)
+          .where('status', whereIn: ['pending', 'active'])
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get active borrowings: $e');
+    }
   }
 
-  // Update overdue status (run periodically)
-  Future<void> updateOverdueStatus() async {
+  // Get overdue borrowings
+  Future<List<Borrowing>> getOverdueBorrowings() async {
     try {
       final now = DateTime.now();
       final snapshot = await _firestore
           .collection('borrowings')
           .where('status', isEqualTo: 'active')
+          .where('expectedReturnDate', isLessThan: Timestamp.fromDate(now))
+          .orderBy('expectedReturnDate', descending: false)
           .get();
-      
-      for (var doc in snapshot.docs) {
-        final borrowing = Borrowing.fromFirestore(doc.data(), documentId: doc.id);
-        if (borrowing.dueDate.isBefore(now)) {
-          await _firestore.collection('borrowings').doc(doc.id).update({
-            'status': 'overdue',
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
     } catch (e) {
-      debugPrint('Error updating overdue status: $e');
+      throw Exception('Failed to get overdue borrowings: $e');
     }
   }
+
+  // Get all borrowings (for admin)
+  Future<List<Borrowing>> getAllBorrowings() async {
+    try {
+      final snapshot = await _firestore
+          .collection('borrowings')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Borrowing.fromFirestore(doc.data(), documentId: doc.id))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get all borrowings: $e');
+    }
+  }
+
+  // ==================== HELPER METHODS ====================
 
   // Log activity
   Future<void> _logActivity({
     required String action,
-    required String performedBy,
-    Map<String, dynamic>? details,
+    required String description,
+    String? userId,
   }) async {
     try {
-      // Get performer name
-      final userDoc = await _firestore.collection('users').doc(performedBy).get();
-      final performerName = userDoc.exists ? userDoc.data()?['name'] ?? 'Unknown' : 'Unknown';
-      
       await _firestore.collection('activity_logs').add({
         'action': action,
-        'performedBy': performedBy,
-        'performedByName': performerName,
-        'details': details ?? {},
+        'description': description,
+        'userId': userId,
+        'performedBy': _auth.currentUser?.uid,
         'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint('Error logging activity: $e');
+      print('Failed to log activity: $e');
+    }
+  }
+
+  // Get borrowing statistics
+  Future<Map<String, int>> getBorrowingStats() async {
+    try {
+      final allBorrowings = await getAllBorrowings();
+
+      int pending = 0;
+      int active = 0;
+      int overdue = 0;
+      int returned = 0;
+
+      for (var borrowing in allBorrowings) {
+        switch (borrowing.status) {
+          case 'pending':
+            pending++;
+            break;
+          case 'active':
+            active++;
+            if (borrowing.isOverdue) {
+              overdue++;
+            }
+            break;
+          case 'returned':
+            returned++;
+            break;
+        }
+      }
+
+      return {
+        'pending': pending,
+        'active': active,
+        'overdue': overdue,
+        'returned': returned,
+        'total': allBorrowings.length,
+      };
+    } catch (e) {
+      return {
+        'pending': 0,
+        'active': 0,
+        'overdue': 0,
+        'returned': 0,
+        'total': 0,
+      };
     }
   }
 }

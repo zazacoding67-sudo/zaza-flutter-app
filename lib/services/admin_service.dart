@@ -6,6 +6,8 @@ class AdminService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
 
+  // ==================== USER MANAGEMENT ====================
+
   // Create new user (compatible with user_management_screen.dart)
   Future<void> createUser(
     app_user.User user,
@@ -148,7 +150,201 @@ class AdminService {
     }
   }
 
-  // Get dashboard stats
+  // Search users
+  Future<List<app_user.User>> searchUsers(String query) async {
+    try {
+      final allUsers = await getAllUsers();
+      final lowercaseQuery = query.toLowerCase();
+
+      return allUsers.where((user) {
+        return user.name.toLowerCase().contains(lowercaseQuery) ||
+            user.email.toLowerCase().contains(lowercaseQuery) ||
+            user.staffId.toLowerCase().contains(lowercaseQuery) ||
+            user.department.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to search users: $e');
+    }
+  }
+
+  // Get users by role
+  Future<List<app_user.User>> getUsersByRole(String role) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: role)
+          .get();
+
+      return snapshot.docs
+          .map(
+            (doc) =>
+                app_user.User.fromFirestore(doc.data(), documentId: doc.id),
+          )
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get users by role: $e');
+    }
+  }
+
+  // ==================== ASSET MANAGEMENT ====================
+
+  // Create new asset
+  Future<void> addAsset(Map<String, dynamic> assetData) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No user logged in');
+      }
+
+      // Add metadata
+      assetData['createdBy'] = currentUser.uid;
+      assetData['createdAt'] = FieldValue.serverTimestamp();
+      assetData['updatedAt'] = FieldValue.serverTimestamp();
+
+      // Add to Firestore
+      final docRef = await _firestore.collection('assets').add(assetData);
+
+      // Log activity
+      await logActivity(
+        action: 'Asset Created',
+        description: 'Created asset: ${assetData['name']}',
+      );
+
+      print('Asset added successfully with ID: ${docRef.id}');
+    } catch (e) {
+      throw Exception('Failed to add asset: $e');
+    }
+  }
+
+  // Get all assets
+  Future<List<Map<String, dynamic>>> getAllAssets() async {
+    try {
+      final snapshot = await _firestore
+          .collection('assets')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        return {'id': doc.id, ...doc.data()};
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get assets: $e');
+    }
+  }
+
+  // Get asset by ID
+  Future<Map<String, dynamic>?> getAssetById(String assetId) async {
+    try {
+      final doc = await _firestore.collection('assets').doc(assetId).get();
+      if (!doc.exists) return null;
+
+      return {'id': doc.id, ...doc.data()!};
+    } catch (e) {
+      throw Exception('Failed to get asset: $e');
+    }
+  }
+
+  // Update asset
+  Future<void> updateAsset(
+    String assetId,
+    Map<String, dynamic> assetData,
+  ) async {
+    try {
+      assetData['updatedAt'] = FieldValue.serverTimestamp();
+
+      await _firestore.collection('assets').doc(assetId).update(assetData);
+
+      // Log activity
+      await logActivity(
+        action: 'Asset Updated',
+        description: 'Updated asset: ${assetData['name'] ?? assetId}',
+      );
+    } catch (e) {
+      throw Exception('Failed to update asset: $e');
+    }
+  }
+
+  // Delete asset
+  Future<void> deleteAsset(String assetId) async {
+    try {
+      // Get asset data first for logging
+      final assetDoc = await _firestore.collection('assets').doc(assetId).get();
+      final assetName = assetDoc.data()?['name'] ?? 'Unknown';
+
+      // Delete from Firestore
+      await _firestore.collection('assets').doc(assetId).delete();
+
+      // Log activity
+      await logActivity(
+        action: 'Asset Deleted',
+        description: 'Deleted asset: $assetName',
+      );
+    } catch (e) {
+      throw Exception('Failed to delete asset: $e');
+    }
+  }
+
+  // Search assets
+  Future<List<Map<String, dynamic>>> searchAssets(String query) async {
+    try {
+      final allAssets = await getAllAssets();
+      final lowercaseQuery = query.toLowerCase();
+
+      return allAssets.where((asset) {
+        final name = (asset['name'] ?? '').toString().toLowerCase();
+        final category = (asset['category'] ?? '').toString().toLowerCase();
+        final serialNumber = (asset['serialNumber'] ?? '')
+            .toString()
+            .toLowerCase();
+        final location = (asset['location'] ?? '').toString().toLowerCase();
+
+        return name.contains(lowercaseQuery) ||
+            category.contains(lowercaseQuery) ||
+            serialNumber.contains(lowercaseQuery) ||
+            location.contains(lowercaseQuery);
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to search assets: $e');
+    }
+  }
+
+  // Get assets by status
+  Future<List<Map<String, dynamic>>> getAssetsByStatus(String status) async {
+    try {
+      final snapshot = await _firestore
+          .collection('assets')
+          .where('status', isEqualTo: status)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        return {'id': doc.id, ...doc.data()};
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get assets by status: $e');
+    }
+  }
+
+  // Get assets by category
+  Future<List<Map<String, dynamic>>> getAssetsByCategory(
+    String category,
+  ) async {
+    try {
+      final snapshot = await _firestore
+          .collection('assets')
+          .where('category', isEqualTo: category)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        return {'id': doc.id, ...doc.data()};
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to get assets by category: $e');
+    }
+  }
+
+  // ==================== DASHBOARD & LOGS ====================
+
+  // Get dashboard stats (Updated Version)
   Future<Map<String, dynamic>> getDashboardStats() async {
     try {
       final usersSnapshot = await _firestore.collection('users').get();
@@ -176,6 +372,7 @@ class AdminService {
           .where((u) => u.role.toLowerCase() == 'student')
           .length;
 
+      // Calculate REAL active loans and pending requests
       int activeBorrowings = 0;
       int overdueItems = 0;
       int pendingRequests = 0;
@@ -183,11 +380,14 @@ class AdminService {
       for (var doc in borrowingsSnapshot.docs) {
         final data = doc.data();
         final status = data['status'] as String?;
-        final dueDate = (data['expectedReturnDate'] as Timestamp?)?.toDate();
+        final expectedReturnDate = (data['expectedReturnDate'] as Timestamp?)
+            ?.toDate();
 
-        if (status == 'active' || status == 'Borrowed') {
+        if (status == 'active') {
           activeBorrowings++;
-          if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+          // Check if overdue
+          if (expectedReturnDate != null &&
+              expectedReturnDate.isBefore(DateTime.now())) {
             overdueItems++;
           }
         } else if (status == 'pending') {
@@ -197,22 +397,41 @@ class AdminService {
 
       // Count available assets
       int availableAssets = 0;
+      int inUseAssets = 0;
+      int maintenanceAssets = 0;
+
       for (var doc in assetsSnapshot.docs) {
         final data = doc.data();
         final status = data['status'] as String?;
-        if (status == 'Available') {
-          availableAssets++;
+
+        switch (status) {
+          case 'Available':
+            availableAssets++;
+            break;
+          case 'In Use':
+            inUseAssets++;
+            break;
+          case 'Maintenance':
+            maintenanceAssets++;
+            break;
         }
       }
 
       return {
+        // User stats
         'totalUsers': totalUsers,
         'activeUsers': activeUsers,
         'adminCount': adminCount,
         'staffCount': staffCount,
         'studentCount': studentCount,
+
+        // Asset stats
         'totalAssets': assetsSnapshot.docs.length,
         'availableAssets': availableAssets,
+        'inUseAssets': inUseAssets,
+        'maintenanceAssets': maintenanceAssets,
+
+        // Borrowing stats - THESE ARE NOW REAL-TIME
         'activeBorrowings': activeBorrowings,
         'overdueItems': overdueItems,
         'pendingRequests': pendingRequests,
@@ -254,42 +473,6 @@ class AdminService {
     } catch (e) {
       print('Failed to get recent activities: $e');
       return [];
-    }
-  }
-
-  // Search users
-  Future<List<app_user.User>> searchUsers(String query) async {
-    try {
-      final allUsers = await getAllUsers();
-      final lowercaseQuery = query.toLowerCase();
-
-      return allUsers.where((user) {
-        return user.name.toLowerCase().contains(lowercaseQuery) ||
-            user.email.toLowerCase().contains(lowercaseQuery) ||
-            user.staffId.toLowerCase().contains(lowercaseQuery) ||
-            user.department.toLowerCase().contains(lowercaseQuery);
-      }).toList();
-    } catch (e) {
-      throw Exception('Failed to search users: $e');
-    }
-  }
-
-  // Get users by role
-  Future<List<app_user.User>> getUsersByRole(String role) async {
-    try {
-      final snapshot = await _firestore
-          .collection('users')
-          .where('role', isEqualTo: role)
-          .get();
-
-      return snapshot.docs
-          .map(
-            (doc) =>
-                app_user.User.fromFirestore(doc.data(), documentId: doc.id),
-          )
-          .toList();
-    } catch (e) {
-      throw Exception('Failed to get users by role: $e');
     }
   }
 }

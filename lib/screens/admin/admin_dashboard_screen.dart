@@ -526,12 +526,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   void _navigateToAddAsset() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const AddAssetScreen()),
-  ).then((result) {
-    if (result == true) {
-      _loadDashboardData(); // Refresh data if asset was added successfully
-    }
-  });
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddAssetScreen()),
+    ).then((result) {
+      if (result == true) {
+        _loadDashboardData(); // Refresh data if asset was added successfully
+      }
+    });
+  }
 }

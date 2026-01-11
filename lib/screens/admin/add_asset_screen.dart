@@ -1,17 +1,19 @@
-// Save this file as: lib/screens/admin/add_asset_screen.dart
+// Replace your lib/screens/admin/add_asset_screen.dart with this:
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/cyberpunk_theme.dart';
+import '../../providers/admin_providers.dart';
 
-class AddAssetScreen extends StatefulWidget {
+class AddAssetScreen extends ConsumerStatefulWidget {
   const AddAssetScreen({super.key});
 
   @override
-  State<AddAssetScreen> createState() => _AddAssetScreenState();
+  ConsumerState<AddAssetScreen> createState() => _AddAssetScreenState();
 }
 
-class _AddAssetScreenState extends State<AddAssetScreen> {
+class _AddAssetScreenState extends ConsumerState<AddAssetScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -90,39 +92,86 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         _isLoading = true;
       });
 
-      // TODO: Replace with your actual API call
-      // Example:
-      // await adminService.addAsset({
-      //   'name': _nameController.text,
-      //   'category': _selectedCategory,
-      //   'description': _descriptionController.text,
-      //   'serialNumber': _serialNumberController.text,
-      //   'purchaseDate': _purchaseDateController.text,
-      //   'purchasePrice': double.parse(_purchasePriceController.text),
-      //   'location': _locationController.text,
-      //   'status': _selectedStatus,
-      // });
+      try {
+        final adminService = ref.read(adminServiceProvider);
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+        // Prepare asset data
+        final assetData = {
+          'name': _nameController.text.trim(),
+          'category': _selectedCategory,
+          'description': _descriptionController.text.trim(),
+          'serialNumber': _serialNumberController.text.trim(),
+          'purchaseDate': _purchaseDateController.text.trim(),
+          'purchasePrice': double.parse(_purchasePriceController.text.trim()),
+          'location': _locationController.text.trim(),
+          'status': _selectedStatus,
+          'borrowedBy': null,
+          'borrowedAt': null,
+          'expectedReturnDate': null,
+        };
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        // Add asset to Firebase
+        await adminService.addAsset(assetData);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Asset "${_nameController.text}" added successfully!',
-              style: CyberpunkTheme.bodyText,
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Asset "${_nameController.text}" added successfully!',
+                      style: CyberpunkTheme.bodyText,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: CyberpunkTheme.neonGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              duration: const Duration(seconds: 3),
             ),
-            backgroundColor: CyberpunkTheme.neonGreen,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+          );
 
-        Navigator.pop(context, true); // Return true to indicate success
+          Navigator.pop(context, true); // Return true to indicate success
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Failed to add asset: ${e.toString()}',
+                      style: CyberpunkTheme.bodyText,
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       }
     }
   }
@@ -375,7 +424,9 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         side: const BorderSide(
