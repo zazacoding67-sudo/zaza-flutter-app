@@ -1,188 +1,205 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../theme/cyberpunk_theme.dart';
 
 class AssetDetailScreen extends StatelessWidget {
   final Map<String, dynamic> asset;
 
   const AssetDetailScreen({super.key, required this.asset});
 
-  Color getStatusColor(String status) {
-    switch (status) {
-      case 'Available':
-        return Colors.green;
-      case 'Borrowed':
-        return Colors.orange;
-      case 'Maintenance':
-        return Colors.red;
-      case 'Retired':
-        return Colors.grey;
+  IconData getCategoryIcon(String c) {
+    switch (c.toLowerCase()) {
+      case 'computer':
+      case 'laptop':
+        return Icons.laptop_mac;
+      case 'microphone':
+      case 'audio':
+        return Icons.mic;
+      case 'camera':
+      case 'video':
+        return Icons.videocam;
+      case 'projector':
+        return Icons.cast;
       default:
-        return Colors.grey;
+        return Icons.inventory_2;
+    }
+  }
+
+  Color getStatusColor(String s) {
+    switch (s) {
+      case 'Available':
+        return CyberpunkTheme.statusAvailable;
+      case 'Borrowed':
+        return CyberpunkTheme.statusBorrowed;
+      case 'Maintenance':
+        return CyberpunkTheme.statusMaintenance;
+      default:
+        return CyberpunkTheme.textMuted;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Asset Details'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.edit),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Edit feature coming soon!')),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Card
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Color(0xFF00897B),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.inventory_2, size: 64, color: Colors.white),
-                  SizedBox(height: 16),
-                  Text(
-                    asset['asset_name'],
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      asset['status'],
-                      style: TextStyle(
-                        color: getStatusColor(asset['status']),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+    final status = asset['status'] ?? 'Unknown';
+    final statusColor = getStatusColor(status);
+
+    return Theme(
+      data: CyberpunkTheme.darkTheme,
+      child: Scaffold(
+        backgroundColor: CyberpunkTheme.background,
+        appBar: AppBar(
+          backgroundColor: CyberpunkTheme.surfaceDark,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back,
+              color: CyberpunkTheme.primaryPink,
             ),
-
-            // Details
-            Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Basic Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 16),
-                  _buildDetailRow('Category', asset['category']),
-                  _buildDetailRow('Brand', asset['brand']),
-                  _buildDetailRow('Model', asset['model']),
-                  _buildDetailRow('Serial Number', asset['serial_number']),
-                  _buildDetailRow('Condition', asset['condition_status']),
-
-                  SizedBox(height: 24),
-                  Text(
-                    'Purchase Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 16),
-                  _buildDetailRow(
-                    'Purchase Date',
-                    asset['purchase_date'] ?? 'N/A',
-                  ),
-                  _buildDetailRow(
-                    'Purchase Price',
-                    'RM ${asset['purchase_price']}',
-                  ),
-                  _buildDetailRow('Location', asset['location']),
-
-                  if (asset['notes'] != null && asset['notes'].isNotEmpty) ...[
-                    SizedBox(height: 24),
-                    Text(
-                      'Notes',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(asset['notes']),
-                      ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'ASSET DETAILS',
+            style: GoogleFonts.orbitron(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: CyberpunkTheme.primaryPink,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Card
+              CyberCard(
+                borderColor: statusColor,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        NeonIconContainer(
+                          icon: getCategoryIcon(asset['category'] ?? ''),
+                          color: CyberpunkTheme.primaryBlue,
+                          size: 64,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                asset['asset_name'] ?? 'Unknown Asset',
+                                style: GoogleFonts.rajdhani(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: CyberpunkTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${asset['brand'] ?? ''} ${asset['model'] ?? ''}'
+                                    .trim(),
+                                style: GoogleFonts.rajdhani(
+                                  fontSize: 14,
+                                  color: CyberpunkTheme.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              StatusBadge(status: status),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: asset['status'] == 'Available'
-          ? Container(
-              padding: EdgeInsets.all(16),
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Borrow feature coming soon!')),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00897B),
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+
+              // Details Card
+              CyberCard(
+                borderColor: CyberpunkTheme.primaryPurple,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DETAILS',
+                      style: GoogleFonts.orbitron(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: CyberpunkTheme.textPrimary,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDetailRow('Category', asset['category'] ?? 'N/A'),
+                    _buildDetailRow(
+                      'Serial Number',
+                      asset['serial_number'] ?? 'N/A',
+                    ),
+                    _buildDetailRow('Location', asset['location'] ?? 'N/A'),
+                    _buildDetailRow(
+                      'Condition',
+                      asset['condition_status'] ?? 'N/A',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Action Button
+              if (status == 'Available')
+                SizedBox(
+                  width: double.infinity,
+                  child: CyberButton(
+                    text: 'BORROW THIS ASSET',
+                    icon: Icons.shopping_bag,
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Use the Browse screen to borrow',
+                            style: GoogleFonts.rajdhani(),
+                          ),
+                          backgroundColor: CyberpunkTheme.surfaceLight,
+                        ),
+                      );
+                      Navigator.pop(context);
+                    },
                   ),
                 ),
-                child: Text(
-                  'Borrow This Asset',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            )
-          : null,
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 130,
+            width: 120,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              style: GoogleFonts.rajdhani(
+                fontSize: 13,
+                color: CyberpunkTheme.textMuted,
+              ),
             ),
           ),
-          Text(': ', style: TextStyle(color: Colors.grey[600])),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+              style: GoogleFonts.rajdhani(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: CyberpunkTheme.textPrimary,
+              ),
             ),
           ),
         ],

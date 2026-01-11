@@ -10,46 +10,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # UI & Icons
   cupertino_icons: ^1.0.8
   google_fonts: ^6.3.2
   cached_network_image: ^3.4.1
-
-  # Firebase Core Services
   firebase_core: ^3.15.2
   firebase_auth: ^5.7.0
   cloud_firestore: ^5.6.12
-
-  # State Management
   flutter_riverpod: ^2.6.1
-
-  # Utilities
   http: ^1.6.0
   intl: ^0.18.1
   fluttertoast: ^8.2.14
-
-  # NEW ADMIN FEATURES
-  # For charts and analytics
   fl_chart: ^0.69.0
-
-  # For data tables
   data_table_2: ^2.5.15
-
-  # For CSV export
   csv: ^6.0.0
-
-  # For PDF generation (reports)
   pdf: ^3.11.0
   printing: ^5.13.4
-
-  # For file operations
   path_provider: ^2.1.5
-
-  # For QR code generation
   qr_flutter: ^4.1.0
-
-  # For date pickers
   syncfusion_flutter_datepicker: ^27.1.58
 
 dev_dependencies:

@@ -1,4 +1,3 @@
-// main.dart - Simplified version
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,6 +5,7 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'providers/auth_provider.dart';
+import 'theme/cyberpunk_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,17 +23,61 @@ class ZazaApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Zaza Asset Management',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.teal,
-        primaryColor: const Color(0xFF00897B),
-        useMaterial3: true,
-      ),
+      theme: CyberpunkTheme.theme, // ✅ Using Cyberpunk Theme
       home: authState.when(
         data: (user) => user != null ? const HomeScreen() : const LoginScreen(),
-        loading: () =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (error, _) =>
-            Scaffold(body: Center(child: Text('Error: $error'))),
+        loading: () => Scaffold(
+          backgroundColor: CyberpunkTheme.deepBlack,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Cyberpunk loading indicator
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: CyberpunkTheme.neonGlow(
+                      CyberpunkTheme.primaryPink,
+                    ),
+                  ),
+                  child: const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      CyberpunkTheme.primaryPink,
+                    ),
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text('LOADING', style: CyberpunkTheme.neonText),
+              ],
+            ),
+          ),
+        ),
+        error: (error, _) => Scaffold(
+          backgroundColor: CyberpunkTheme.deepBlack,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 60,
+                  color: CyberpunkTheme.primaryPink,
+                ),
+                const SizedBox(height: 16),
+                Text('ERROR', style: CyberpunkTheme.heading2),
+                const SizedBox(height: 8),
+                Text(
+                  '$error',
+                  style: CyberpunkTheme.bodyText,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

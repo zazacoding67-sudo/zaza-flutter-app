@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class SystemSettingsScreen extends StatelessWidget {
+class SystemSettingsScreen extends ConsumerWidget {
   const SystemSettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: ListView(
+        padding: const EdgeInsets.all(20),
         children: [
           Text(
             'System Settings',
@@ -18,168 +18,83 @@ class SystemSettingsScreen extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Configure system preferences and rules',
-            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 30),
-
-          // Borrowing Rules
-          _buildSettingsSection('Borrowing Rules', Icons.rule, Colors.blue, [
-            _buildSettingItem('Maximum borrow days', '7 days', () {}),
-            _buildSettingItem('Max items per user', '3 items', () {}),
-            _buildSettingItem('Require admin approval', 'Enabled', () {}),
-            _buildSettingItem('Late fee per day', 'RM 5.00', () {}),
-          ]),
-
           const SizedBox(height: 20),
-
-          // Categories Management
-          _buildSettingsSection(
-            'Asset Categories',
-            Icons.category,
-            Colors.green,
-            [
-              _buildSettingItem(
-                'Manage categories',
-                'Edit, add, or remove',
-                () {},
-              ),
-              _buildSettingItem('Default categories', '5 active', () {}),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Notifications
-          _buildSettingsSection(
-            'Notifications',
-            Icons.notifications,
-            Colors.orange,
-            [
-              _buildSettingItem('Email reminders', 'Enabled', () {}),
-              _buildSettingItem('Overdue alerts', 'Daily', () {}),
-              _buildSettingItem('Return confirmations', 'Enabled', () {}),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // System Maintenance
-          _buildSettingsSection(
-            'System Maintenance',
-            Icons.settings,
-            Colors.purple,
-            [
-              _buildSettingItem('Backup database', 'Last: Never', () {}),
-              _buildSettingItem('View audit logs', 'System activity', () {}),
-              _buildSettingItem('Clear cache', 'Free up space', () {}),
-            ],
-          ),
-
-          const SizedBox(height: 30),
-
-          Card(
-            color: Colors.amber[50],
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Icon(Icons.construction, size: 60, color: Colors.amber[700]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Settings Configuration Coming Soon',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Full configuration options will be available here',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+          _buildSettingsSection('General Settings', [
+            _buildSettingsTile(
+              'App Name',
+              'Zaza Asset Management',
+              Icons.label,
             ),
-          ),
+            _buildSettingsTile('Version', '1.0.0', Icons.info),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection('Borrowing Rules', [
+            _buildSettingsTile(
+              'Max Borrowing Days',
+              '14 days',
+              Icons.calendar_today,
+            ),
+            _buildSettingsTile(
+              'Max Items Per User',
+              '5 items',
+              Icons.inventory,
+            ),
+          ]),
+          const SizedBox(height: 20),
+          _buildSettingsSection('Notifications', [
+            _buildSwitchTile('Email Notifications', true, (value) {}),
+            _buildSwitchTile('SMS Notifications', false, (value) {}),
+          ]),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsSection(
-    String title,
-    IconData icon,
-    Color color,
-    List<Widget> children,
-  ) {
+  Widget _buildSettingsSection(String title, List<Widget> children) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
+          ),
+          const Divider(height: 1),
+          ...children,
+        ],
       ),
     );
   }
 
-  Widget _buildSettingItem(String title, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: GoogleFonts.poppins(fontSize: 14)),
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right, size: 20, color: Colors.grey[400]),
-              ],
-            ),
-          ],
-        ),
+  Widget _buildSettingsTile(String title, String value, IconData icon) {
+    return ListTile(
+      leading: Icon(icon, color: const Color(0xFF00897B)),
+      title: Text(title, style: GoogleFonts.poppins()),
+      trailing: Text(
+        value,
+        style: GoogleFonts.poppins(color: Colors.grey[600]),
       ),
+    );
+  }
+
+  Widget _buildSwitchTile(
+    String title,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return SwitchListTile(
+      title: Text(title, style: GoogleFonts.poppins()),
+      value: value,
+      onChanged: onChanged,
+      activeColor: const Color(0xFF00897B),
     );
   }
 }

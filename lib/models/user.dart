@@ -12,7 +12,7 @@ class User {
   final bool isActive;
   final DateTime? createdAt;
   final DateTime? lastLogin;
-  final String? createdBy; // User ID of admin who created this account
+  final String? createdBy;
 
   User({
     required this.id,
@@ -29,16 +29,11 @@ class User {
     this.createdBy,
   });
 
-  // Check if user is admin
   bool get isAdmin => role.toLowerCase() == 'admin';
-
-  // Check if user is staff
   bool get isStaff => role.toLowerCase() == 'staff';
-
-  // Check if user is student
   bool get isStudent => role.toLowerCase() == 'student';
 
-  // Factory for Firestore
+  // FIXED: Accepts documentId parameter
   factory User.fromFirestore(Map<String, dynamic> data, {String? documentId}) {
     return User(
       id: documentId ?? data['id'] ?? '',
@@ -56,29 +51,6 @@ class User {
     );
   }
 
-  // Factory for JSON
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['id']?.toString() ?? '',
-      staffId: json['staff_id'] ?? json['staffId'] ?? '',
-      name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      department: json['department'] ?? '',
-      role: json['role'] ?? 'student',
-      phone: json['phone'],
-      photoUrl: json['photoUrl'],
-      isActive: json['isActive'] ?? true,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : null,
-      lastLogin: json['lastLogin'] != null
-          ? DateTime.parse(json['lastLogin'])
-          : null,
-      createdBy: json['createdBy'],
-    );
-  }
-
-  // Convert to Firestore map
   Map<String, dynamic> toFirestore() {
     return {
       'id': id,
@@ -98,25 +70,6 @@ class User {
     };
   }
 
-  // Convert to JSON
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'staff_id': staffId,
-      'name': name,
-      'email': email,
-      'department': department,
-      'role': role,
-      'phone': phone,
-      'photoUrl': photoUrl,
-      'isActive': isActive,
-      'createdAt': createdAt?.toIso8601String(),
-      'lastLogin': lastLogin?.toIso8601String(),
-      'createdBy': createdBy,
-    };
-  }
-
-  // Copy with method for updates
   User copyWith({
     String? id,
     String? staffId,
@@ -145,10 +98,5 @@ class User {
       lastLogin: lastLogin ?? this.lastLogin,
       createdBy: createdBy ?? this.createdBy,
     );
-  }
-
-  @override
-  String toString() {
-    return 'User(id: $id, name: $name, email: $email, role: $role, isActive: $isActive)';
   }
 }

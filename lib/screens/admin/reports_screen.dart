@@ -1,121 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class ReportsScreen extends StatelessWidget {
+class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Reports & Analytics',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Reports & Analytics',
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Generate comprehensive reports and view analytics',
-            style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 30),
-
-          // Report Cards Grid
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.2,
-            children: [
-              _buildReportCard(
-                'Borrowing History',
-                'View all borrowing records',
-                Icons.history,
-                Colors.blue,
-                () {},
-              ),
-              _buildReportCard(
-                'Asset Utilization',
-                'See which assets are used most',
-                Icons.trending_up,
-                Colors.green,
-                () {},
-              ),
-              _buildReportCard(
-                'Overdue Items',
-                'Track overdue borrowings',
-                Icons.warning,
-                Colors.red,
-                () {},
-              ),
-              _buildReportCard(
-                'User Activity',
-                'Monitor user engagement',
-                Icons.people,
-                Colors.purple,
-                () {},
-              ),
-              _buildReportCard(
-                'Monthly Summary',
-                'Generate monthly reports',
-                Icons.calendar_month,
-                Colors.orange,
-                () {},
-              ),
-              _buildReportCard(
-                'Export Data',
-                'Export to CSV/PDF',
-                Icons.download,
-                Colors.teal,
-                () {},
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 30),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
+            const SizedBox(height: 20),
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.2,
                 children: [
-                  Icon(Icons.construction, size: 60, color: Colors.amber[700]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Advanced Reports Coming Soon',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  _buildReportCard(
+                    'User Reports',
+                    Icons.people,
+                    Colors.blue,
+                    () {},
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Charts, analytics, and export features will be available here',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
+                  _buildReportCard(
+                    'Asset Reports',
+                    Icons.inventory,
+                    Colors.green,
+                    () {},
+                  ),
+                  _buildReportCard(
+                    'Borrowing Reports',
+                    Icons.assignment,
+                    Colors.orange,
+                    () {},
+                  ),
+                  _buildReportCard(
+                    'Activity Logs',
+                    Icons.history,
+                    Colors.purple,
+                    () {},
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildReportCard(
     String title,
-    String subtitle,
     IconData icon,
     Color color,
     VoidCallback onTap,
@@ -129,36 +76,17 @@ class ReportsScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+              Icon(icon, size: 48, color: color),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
-                child: Icon(icon, color: color, size: 28),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+                textAlign: TextAlign.center,
               ),
             ],
           ),
