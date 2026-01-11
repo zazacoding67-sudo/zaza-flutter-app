@@ -25,7 +25,7 @@ class _BorrowingsScreenState extends State<BorrowingsScreen> {
   Future<void> loadBorrowings() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('borrow_records')
+          .collection('borrowings')
           .orderBy('borrowedDate', descending: true)
           .get();
       if (mounted) {

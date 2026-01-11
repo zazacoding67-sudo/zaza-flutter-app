@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/asset.dart';
 import '../theme/cyberpunk_theme.dart';
 
 class AssetsScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class AssetsScreen extends StatefulWidget {
 }
 
 class _AssetsScreenState extends State<AssetsScreen> {
-  List<Map<String, dynamic>> assets = [];
+  List<Asset> assets = [];
   bool isLoading = true;
   String searchQuery = '';
   String filterStatus = 'All';
@@ -20,60 +21,60 @@ class _AssetsScreenState extends State<AssetsScreen> {
   @override
   void initState() {
     super.initState();
-    loadAssets();
+    _loadAssets();
   }
 
-  Future<void> loadAssets() async {
+  Future<void> _loadAssets() async {
     setState(() => isLoading = true);
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('assets')
+          .orderBy('createdAt', descending: true)
           .get();
+
       final loadedAssets = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unnamed',
-          'category': data['category'] ?? 'Unknown',
-          'description': data['description'] ?? '',
-          'serialNumber': data['serialNumber'] ?? '',
-          'isAvailable': data['isAvailable'] ?? true,
-          'location': data['location'] ?? '',
-        };
+        return Asset.fromFirestore(doc.data(), documentId: doc.id);
       }).toList();
-      if (mounted)
+
+      if (mounted) {
         setState(() {
           assets = loadedAssets;
           isLoading = false;
         });
+      }
     } catch (e) {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+      debugPrint('Error loading assets: $e');
     }
   }
 
-  List<Map<String, dynamic>> get filteredAssets {
+  List<Asset> get filteredAssets {
     var result = assets;
-    if (filterStatus == 'Available')
-      result = result.where((a) => a['isAvailable'] == true).toList();
-    else if (filterStatus == 'Borrowed')
-      result = result.where((a) => a['isAvailable'] == false).toList();
-    if (searchQuery.isNotEmpty) {
-      result = result
-          .where(
-            (a) =>
-                (a['name'] ?? '').toLowerCase().contains(
-                  searchQuery.toLowerCase(),
-                ) ||
-                (a['category'] ?? '').toLowerCase().contains(
-                  searchQuery.toLowerCase(),
-                ),
-          )
-          .toList();
+
+    // Apply status filter
+    if (filterStatus == 'Available') {
+      result = result.where((asset) => asset.isAvailable).toList();
+    } else if (filterStatus == 'Borrowed') {
+      result = result.where((asset) => !asset.isAvailable).toList();
     }
+
+    // Apply search filter
+    if (searchQuery.isNotEmpty) {
+      final lowerQuery = searchQuery.toLowerCase();
+      result = result.where((asset) {
+        return asset.name.toLowerCase().contains(lowerQuery) ||
+            asset.category.toLowerCase().contains(lowerQuery) ||
+            asset.serialNumber.toLowerCase().contains(lowerQuery) ||
+            (asset.assetCode ?? '').toLowerCase().contains(lowerQuery);
+      }).toList();
+    }
+
     return result;
   }
 
-  Future<void> borrowAsset(Map<String, dynamic> asset) async {
+  Future<void> _borrowAsset(Asset asset) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -82,56 +83,74 @@ class _AssetsScreenState extends State<AssetsScreen> {
           .collection('users')
           .doc(user.uid)
           .get();
-      final userData = userDoc.data();
-      final now = DateTime.now();
-      final expectedReturn = now.add(const Duration(days: 7));
 
-      await FirebaseFirestore.instance.collection('borrow_records').add({
-        'assetId': asset['id'],
-        'assetName': asset['name'],
-        'category': asset['category'],
-        'serialNumber': asset['serialNumber'],
+      if (!userDoc.exists) {
+        _showError('User data not found');
+        return;
+      }
+
+      final userData = userDoc.data()!;
+      final now = DateTime.now();
+
+      // FIXED: Include ALL required fields
+      await FirebaseFirestore.instance.collection('borrowings').add({
+        'assetId': asset.id,
+        'assetName': asset.name,
+        'assetCode': asset.assetCode ?? asset.serialNumber,
+        'category': asset.category,
+        'serialNumber': asset.serialNumber,
         'userId': user.uid,
-        'userName': userData?['name'] ?? user.email,
+        'userName': userData['name'] ?? user.email,
         'userEmail': user.email,
-        'userStaffId': userData?['staffId'] ?? '',
-        'borrowedDate': Timestamp.fromDate(now),
-        'expectedReturnDate': Timestamp.fromDate(expectedReturn),
+        'userStaffId': userData['staffId'] ?? '',
+        'userRole': userData['role'] ?? 'student',
+        'requestedDate': Timestamp.fromDate(now),
+        'status': 'pending',
+        'expectedReturnDate': null,
+        'approvedDate': null,
+        'borrowedDate': null,
         'actualReturnDate': null,
-        'status': 'Borrowed',
+        'rejectionReason': null,
+        'purpose': 'General use',
+        'notes': '',
         'createdAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now), // Initialize updatedAt
       });
 
-      await FirebaseFirestore.instance
-          .collection('assets')
-          .doc(asset['id'])
-          .update({'isAvailable': false});
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '✅ Successfully borrowed ${asset['name']}!',
-              style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
-            ),
-            backgroundColor: CyberpunkTheme.surfaceDark,
-          ),
-        );
-        loadAssets();
-      }
+      _showSuccess('Borrowing request submitted! Waiting for admin approval.');
+      _loadAssets();
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error: $e'),
-            backgroundColor: CyberpunkTheme.surfaceDark,
-          ),
-        );
+      _showError('Error: $e');
+      debugPrint('Error creating borrow request: $e');
     }
   }
 
-  IconData _getCategoryIcon(String? category) {
-    switch ((category ?? '').toLowerCase()) {
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '✅ $message',
+          style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: CyberpunkTheme.accentGreen.withOpacity(0.8),
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '❌ $message',
+          style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: CyberpunkTheme.primaryPink.withOpacity(0.8),
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
       case 'computer':
       case 'laptop':
         return Icons.laptop_mac;
@@ -150,8 +169,8 @@ class _AssetsScreenState extends State<AssetsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final availableCount = assets.where((a) => a['isAvailable'] == true).length;
-    final borrowedCount = assets.where((a) => a['isAvailable'] == false).length;
+    final availableCount = assets.where((a) => a.isAvailable).length;
+    final borrowedCount = assets.where((a) => !a.isAvailable).length;
 
     return SafeArea(
       child: Column(
@@ -160,6 +179,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Search Bar
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
@@ -182,10 +202,12 @@ class _AssetsScreenState extends State<AssetsScreen> {
                       ),
                       border: InputBorder.none,
                     ),
-                    onChanged: (v) => setState(() => searchQuery = v),
+                    onChanged: (value) => setState(() => searchQuery = value),
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Filter Chips
                 Row(
                   children: [
                     _buildFilterChip(
@@ -210,6 +232,8 @@ class _AssetsScreenState extends State<AssetsScreen> {
               ],
             ),
           ),
+
+          // Asset List
           Expanded(
             child: isLoading
                 ? const Center(
@@ -232,18 +256,20 @@ class _AssetsScreenState extends State<AssetsScreen> {
                           'No assets found',
                           style: GoogleFonts.rajdhani(
                             color: CyberpunkTheme.textMuted,
+                            fontSize: 16,
                           ),
                         ),
                       ],
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: loadAssets,
+                    onRefresh: _loadAssets,
                     color: CyberpunkTheme.primaryPink,
                     child: ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: filteredAssets.length,
-                      itemBuilder: (_, i) => _buildAssetCard(filteredAssets[i]),
+                      itemBuilder: (context, index) =>
+                          _buildAssetCard(filteredAssets[index]),
                     ),
                   ),
           ),
@@ -300,11 +326,12 @@ class _AssetsScreenState extends State<AssetsScreen> {
     );
   }
 
-  Widget _buildAssetCard(Map<String, dynamic> asset) {
-    final isAvailable = asset['isAvailable'] == true;
+  Widget _buildAssetCard(Asset asset) {
+    final isAvailable = asset.isAvailable;
     final color = isAvailable
         ? CyberpunkTheme.accentGreen
         : CyberpunkTheme.primaryBlue;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -315,6 +342,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
       ),
       child: Row(
         children: [
+          // Icon
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -322,18 +350,21 @@ class _AssetsScreenState extends State<AssetsScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              _getCategoryIcon(asset['category']),
+              _getCategoryIcon(asset.category),
               color: color,
               size: 26,
             ),
           ),
+
           const SizedBox(width: 14),
+
+          // Asset Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  asset['name'],
+                  asset.name,
                   style: GoogleFonts.rajdhani(
                     color: CyberpunkTheme.textPrimary,
                     fontSize: 15,
@@ -341,7 +372,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                   ),
                 ),
                 Text(
-                  '${asset['category']} • ${asset['serialNumber']}',
+                  '${asset.category} • ${asset.assetCode ?? asset.serialNumber}',
                   style: GoogleFonts.rajdhani(
                     color: CyberpunkTheme.textMuted,
                     fontSize: 11,
@@ -358,7 +389,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    isAvailable ? 'AVAILABLE' : 'ON LOAN',
+                    asset.status.toUpperCase(),
                     style: GoogleFonts.rajdhani(
                       color: color,
                       fontSize: 10,
@@ -369,6 +400,8 @@ class _AssetsScreenState extends State<AssetsScreen> {
               ],
             ),
           ),
+
+          // Borrow Button (only if available)
           if (isAvailable)
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -381,7 +414,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              onPressed: () => borrowAsset(asset),
+              onPressed: () => _borrowAsset(asset),
               child: Text(
                 'Borrow',
                 style: GoogleFonts.rajdhani(

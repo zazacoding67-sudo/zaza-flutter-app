@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../theme/cyberpunk_theme.dart';
+import '../services/borrowing_service.dart';
 
 class MyBorrowedScreen extends StatefulWidget {
   const MyBorrowedScreen({super.key});
@@ -13,526 +13,408 @@ class MyBorrowedScreen extends StatefulWidget {
 }
 
 class _MyBorrowedScreenState extends State<MyBorrowedScreen> {
-  bool isLoading = true;
-  List<Map<String, dynamic>> borrowedItems = [];
+  final BorrowingService _borrowingService = BorrowingService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  int _selectedTab = 0;
 
   @override
-  void initState() {
-    super.initState();
-    loadBorrowedItems();
-  }
-
-  Future<void> loadBorrowedItems() async {
-    setState(() => isLoading = true);
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() => isLoading = false);
-        return;
-      }
-      final snapshot = await FirebaseFirestore.instance
-          .collection('borrow_records')
-          .where('userId', isEqualTo: user.uid)
-          .where('status', isEqualTo: 'Borrowed')
-          .get();
-      final items = snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
-      items.sort((a, b) {
-        final aDate = a['borrowedDate'] as Timestamp?;
-        final bDate = b['borrowedDate'] as Timestamp?;
-        if (aDate == null || bDate == null) return 0;
-        return bDate.compareTo(aDate);
-      });
-      if (mounted)
-        setState(() {
-          borrowedItems = items;
-          isLoading = false;
-        });
-    } catch (e) {
-      if (mounted) setState(() => isLoading = false);
+  Widget build(BuildContext context) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Please login'));
     }
-  }
 
-  Future<void> returnItem(Map<String, dynamic> item) async {
-    DateTime selectedDate = DateTime.now();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: CyberpunkTheme.surfaceDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: CyberpunkTheme.accentGreen.withOpacity(0.3),
-            ),
-          ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
           title: Text(
-            'RETURN ITEM',
-            style: GoogleFonts.orbitron(
-              color: CyberpunkTheme.accentGreen,
-              fontSize: 16,
+            'My Borrowed Items',
+            style: GoogleFonts.rajdhani(
+              fontWeight: FontWeight.bold,
+              color: CyberpunkTheme.textPrimary,
             ),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: CyberpunkTheme.surfaceLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: CyberpunkTheme.primaryBlue.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        _getCategoryIcon(item['category']),
-                        color: CyberpunkTheme.primaryBlue,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        item['assetName'] ?? 'Unknown',
-                        style: GoogleFonts.rajdhani(
-                          color: CyberpunkTheme.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Select Return Date',
-                style: GoogleFonts.rajdhani(
-                  color: CyberpunkTheme.textMuted,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: selectedDate,
-                    firstDate: DateTime(2024),
-                    lastDate: DateTime.now(),
-                    builder: (context, child) => Theme(
-                      data: ThemeData.dark().copyWith(
-                        colorScheme: const ColorScheme.dark(
-                          primary: CyberpunkTheme.accentGreen,
-                          surface: CyberpunkTheme.surfaceDark,
-                        ),
-                      ),
-                      child: child!,
-                    ),
-                  );
-                  if (picked != null)
-                    setDialogState(() => selectedDate = picked);
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: CyberpunkTheme.surfaceLight,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: CyberpunkTheme.accentGreen.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: CyberpunkTheme.accentGreen,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        DateFormat('dd MMM yyyy').format(selectedDate),
-                        style: GoogleFonts.rajdhani(
-                          color: CyberpunkTheme.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      const Icon(
-                        Icons.edit,
-                        color: CyberpunkTheme.textMuted,
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          backgroundColor: CyberpunkTheme.surfaceDark,
+          bottom: TabBar(
+            labelStyle: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+            indicatorColor: CyberpunkTheme.primaryPink,
+            tabs: const [
+              Tab(text: 'PENDING'),
+              Tab(text: 'ACTIVE'),
+              Tab(text: 'HISTORY'),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.rajdhani(color: CyberpunkTheme.textMuted),
-              ),
+        ),
+        body: TabBarView(
+          children: [
+            // PENDING TAB
+            StreamBuilder<QuerySnapshot>(
+              stream: _borrowingService.getUserPendingRequestsStream(user.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _buildEmptyState('No pending requests');
+                }
+                return _buildPendingList(snapshot.data!.docs);
+              },
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CyberpunkTheme.accentGreen,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(
-                'Confirm',
-                style: GoogleFonts.rajdhani(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+
+            // ACTIVE TAB
+            StreamBuilder<QuerySnapshot>(
+              stream: _borrowingService.getUserActiveLoansStream(user.uid),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _buildEmptyState('No active loans');
+                }
+                return _buildActiveList(snapshot.data!.docs);
+              },
+            ),
+
+            // HISTORY TAB (Returned & Rejected) - FIXED: No orderBy
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('borrowings')
+                  .where('userId', isEqualTo: user.uid)
+                  .where('status', whereIn: ['returned', 'rejected'])
+                  .snapshots(), // REMOVED: .orderBy('updatedAt', descending: true)
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _buildEmptyState('No history');
+                }
+                return _buildHistoryList(snapshot.data!.docs);
+              },
             ),
           ],
         ),
       ),
     );
-
-    if (confirmed == true) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('borrow_records')
-            .doc(item['id'])
-            .update({
-              'status': 'Returned',
-              'actualReturnDate': Timestamp.fromDate(selectedDate),
-            });
-        if (item['assetId'] != null) {
-          await FirebaseFirestore.instance
-              .collection('assets')
-              .doc(item['assetId'])
-              .update({'isAvailable': true});
-        }
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Returned successfully!',
-                style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
-              ),
-              backgroundColor: CyberpunkTheme.surfaceDark,
-            ),
-          );
-          loadBorrowedItems();
-        }
-      } catch (e) {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Error: $e'),
-              backgroundColor: CyberpunkTheme.surfaceDark,
-            ),
-          );
-      }
-    }
   }
 
-  bool isOverdue(dynamic date) {
-    if (date == null) return false;
-    if (date is Timestamp) return date.toDate().isBefore(DateTime.now());
-    return false;
-  }
-
-  String formatDate(dynamic date) {
-    if (date == null) return 'N/A';
-    if (date is Timestamp)
-      return DateFormat('dd MMM yyyy').format(date.toDate());
-    return 'N/A';
-  }
-
-  IconData _getCategoryIcon(String? category) {
-    switch ((category ?? '').toLowerCase()) {
-      case 'computer':
-      case 'laptop':
-        return Icons.laptop_mac;
-      case 'microphone':
-      case 'audio':
-        return Icons.mic;
-      case 'camera':
-      case 'video':
-        return Icons.videocam;
-      case 'projector':
-        return Icons.cast;
-      default:
-        return Icons.inventory_2;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final overdueCount = borrowedItems
-        .where((i) => isOverdue(i['expectedReturnDate']))
-        .length;
-
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.shopping_bag_rounded,
-                  color: CyberpunkTheme.accentOrange,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'My Borrowed Items',
-                  style: GoogleFonts.orbitron(
-                    color: CyberpunkTheme.accentOrange,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                if (overdueCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: CyberpunkTheme.statusMaintenance.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '$overdueCount overdue',
-                      style: GoogleFonts.rajdhani(
-                        color: CyberpunkTheme.statusMaintenance,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.refresh,
-                    color: CyberpunkTheme.accentOrange,
-                    size: 22,
-                  ),
-                  onPressed: loadBorrowedItems,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: CyberpunkTheme.accentOrange,
-                    ),
-                  )
-                : borrowedItems.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.shopping_bag_outlined,
-                          size: 50,
-                          color: CyberpunkTheme.textMuted.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No borrowed items',
-                          style: GoogleFonts.rajdhani(
-                            color: CyberpunkTheme.textMuted,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: loadBorrowedItems,
-                    color: CyberpunkTheme.accentOrange,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: borrowedItems.length,
-                      itemBuilder: (_, i) => _buildItemCard(borrowedItems[i]),
-                    ),
-                  ),
-          ),
-        ],
-      ),
+  Widget _buildPendingList(List<QueryDocumentSnapshot> docs) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = docs[index].data() as Map<String, dynamic>;
+        return _buildBorrowingCard(
+          data,
+          status: 'PENDING',
+          statusColor: Colors.orange,
+          showReturnButton: false,
+        );
+      },
     );
   }
 
-  Widget _buildItemCard(Map<String, dynamic> item) {
-    final overdue = isOverdue(item['expectedReturnDate']);
-    final color = overdue
-        ? CyberpunkTheme.statusMaintenance
-        : CyberpunkTheme.accentGreen;
+  Widget _buildActiveList(List<QueryDocumentSnapshot> docs) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = docs[index].data() as Map<String, dynamic>;
+        final expectedReturn = (data['expectedReturnDate'] as Timestamp?)
+            ?.toDate();
+        final isOverdue =
+            expectedReturn != null && DateTime.now().isAfter(expectedReturn);
+
+        return _buildBorrowingCard(
+          data,
+          status: isOverdue ? 'OVERDUE' : 'ACTIVE',
+          statusColor: isOverdue ? Colors.red : CyberpunkTheme.accentGreen,
+          showReturnButton: true,
+          borrowingId: docs[index].id,
+          assetId: data['assetId'],
+        );
+      },
+    );
+  }
+
+  Widget _buildHistoryList(List<QueryDocumentSnapshot> docs) {
+    // Sort by date (newest first)
+    docs.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+
+      // Get appropriate date for sorting
+      DateTime? getDate(Map<String, dynamic> data) {
+        if (data['status'] == 'rejected') {
+          final rejected = data['rejectedDate'] as Timestamp?;
+          return rejected?.toDate();
+        } else if (data['status'] == 'returned') {
+          final returned = data['actualReturnDate'] as Timestamp?;
+          return returned?.toDate();
+        }
+        // Fallback to updatedAt or createdAt
+        final updated = data['updatedAt'] as Timestamp?;
+        if (updated != null) return updated.toDate();
+        final created = data['createdAt'] as Timestamp?;
+        return created?.toDate();
+      }
+
+      final aDate = getDate(aData);
+      final bDate = getDate(bData);
+
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+
+      return bDate.compareTo(aDate); // Descending
+    });
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final data = docs[index].data() as Map<String, dynamic>;
+        final isRejected = data['status'] == 'rejected';
+
+        return _buildBorrowingCard(
+          data,
+          status: isRejected ? 'REJECTED' : 'RETURNED',
+          statusColor: isRejected ? Colors.red : Colors.grey,
+          showReturnButton: false,
+          showReason: isRejected,
+        );
+      },
+    );
+  }
+
+  Widget _buildBorrowingCard(
+    Map<String, dynamic> data, {
+    required String status,
+    required Color statusColor,
+    required bool showReturnButton,
+    String? borrowingId,
+    String? assetId,
+    bool showReason = false,
+  }) {
+    // Safely get values with defaults
+    final assetName = data['assetName'] ?? 'Unknown Item';
+    final category = data['category'] ?? 'Unknown';
+    final serialNumber = data['serialNumber'] ?? 'N/A';
+    final assetCode = data['assetCode'] ?? serialNumber;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: CyberpunkTheme.surfaceDark,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: CyberpunkTheme.primaryBlue.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _getCategoryIcon(item['category']),
-                  color: CyberpunkTheme.primaryBlue,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['assetName'] ?? 'Unknown',
-                      style: GoogleFonts.rajdhani(
-                        color: CyberpunkTheme.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      item['category'] ?? '',
-                      style: GoogleFonts.rajdhani(
-                        color: CyberpunkTheme.textMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  assetName,
+                  style: GoogleFonts.rajdhani(
+                    color: CyberpunkTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              if (overdue)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: CyberpunkTheme.statusMaintenance.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'OVERDUE',
-                    style: GoogleFonts.rajdhani(
-                      color: CyberpunkTheme.statusMaintenance,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  status,
+                  style: GoogleFonts.rajdhani(
+                    color: statusColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: CyberpunkTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Borrowed',
-                        style: GoogleFonts.rajdhani(
-                          color: CyberpunkTheme.textMuted,
-                          fontSize: 10,
-                        ),
-                      ),
-                      Text(
-                        formatDate(item['borrowedDate']),
-                        style: GoogleFonts.rajdhani(
-                          color: CyberpunkTheme.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: CyberpunkTheme.primaryPurple.withOpacity(0.3),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Due',
-                        style: GoogleFonts.rajdhani(color: color, fontSize: 10),
-                      ),
-                      Text(
-                        formatDate(item['expectedReturnDate']),
-                        style: GoogleFonts.rajdhani(
-                          color: color,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            '$category • $assetCode',
+            style: GoogleFonts.rajdhani(
+              color: CyberpunkTheme.textMuted,
+              fontSize: 12,
             ),
           ),
+          const SizedBox(height: 8),
+
+          if (data['requestedDate'] != null)
+            _buildInfoRow(
+              'Requested:',
+              _formatDate((data['requestedDate'] as Timestamp).toDate()),
+            ),
+
+          if (data['approvedDate'] != null)
+            _buildInfoRow(
+              'Approved:',
+              _formatDate((data['approvedDate'] as Timestamp).toDate()),
+            ),
+
+          if (data['expectedReturnDate'] != null)
+            _buildInfoRow(
+              'Due Date:',
+              _formatDate((data['expectedReturnDate'] as Timestamp).toDate()),
+            ),
+
+          if (data['actualReturnDate'] != null)
+            _buildInfoRow(
+              'Returned:',
+              _formatDate((data['actualReturnDate'] as Timestamp).toDate()),
+            ),
+
+          if (showReason && data['rejectionReason'] != null)
+            _buildInfoRow(
+              'Reason:',
+              data['rejectionReason'].toString(),
+              color: Colors.red,
+            ),
+
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CyberpunkTheme.accentGreen,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+
+          if (showReturnButton && borrowingId != null && assetId != null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: CyberpunkTheme.primaryPink,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () => _returnItem(borrowingId, assetId),
+                child: Text(
+                  'Return Item',
+                  style: GoogleFonts.rajdhani(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              onPressed: () => returnItem(item),
-              icon: const Icon(
-                Icons.assignment_return,
-                size: 18,
-                color: Colors.white,
-              ),
-              label: Text(
-                'Return Item',
-                style: GoogleFonts.rajdhani(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.rajdhani(
+              color: CyberpunkTheme.textMuted,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.rajdhani(
+                color: color ?? CyberpunkTheme.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_outlined,
+            size: 60,
+            color: CyberpunkTheme.textMuted.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: GoogleFonts.rajdhani(
+              color: CyberpunkTheme.textMuted,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _returnItem(String borrowingId, String assetId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Confirm Return',
+          style: GoogleFonts.rajdhani(fontWeight: FontWeight.bold),
+        ),
+        content: const Text('Are you sure you want to return this item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CyberpunkTheme.primaryPink,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Return'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await _borrowingService.returnAsset(
+        borrowingId: borrowingId,
+        assetId: assetId,
+        returnedBy: user.uid,
+      );
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '✅ Item returned successfully!',
+              style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: CyberpunkTheme.accentGreen,
+          ),
+        );
+      }
+    }
   }
 }

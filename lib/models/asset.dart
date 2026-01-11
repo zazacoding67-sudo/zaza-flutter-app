@@ -1,5 +1,3 @@
-// Save this as: lib/models/asset.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Asset {
@@ -18,6 +16,7 @@ class Asset {
   final String createdBy;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? assetCode;
 
   Asset({
     required this.id,
@@ -35,7 +34,11 @@ class Asset {
     required this.createdBy,
     required this.createdAt,
     this.updatedAt,
+    this.assetCode,
   });
+
+  // Computed property - derive isAvailable from status
+  bool get isAvailable => status.toLowerCase() == 'available';
 
   // Create Asset from Firestore document
   factory Asset.fromFirestore(
@@ -51,7 +54,7 @@ class Asset {
       purchaseDate: data['purchaseDate'] ?? '',
       purchasePrice: (data['purchasePrice'] ?? 0).toDouble(),
       location: data['location'] ?? '',
-      status: data['status'] ?? 'Available',
+      status: _normalizeStatus(data['status'] ?? 'Available'),
       borrowedBy: data['borrowedBy'],
       borrowedAt: data['borrowedAt'] != null
           ? (data['borrowedAt'] as Timestamp).toDate()
@@ -66,7 +69,23 @@ class Asset {
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
           : null,
+      assetCode: data['assetCode'] ?? data['serialNumber'],
     );
+  }
+
+  // Normalize status to prevent issues
+  static String _normalizeStatus(String status) {
+    final lowerStatus = status.toLowerCase();
+
+    if (lowerStatus.contains('available')) return 'Available';
+    if (lowerStatus.contains('loan') ||
+        lowerStatus.contains('borrowed') ||
+        lowerStatus.contains('in use'))
+      return 'In Use';
+    if (lowerStatus.contains('maintenance')) return 'Maintenance';
+    if (lowerStatus.contains('retired')) return 'Retired';
+
+    return 'Available'; // Default
   }
 
   // Convert Asset to Firestore document
@@ -80,12 +99,16 @@ class Asset {
       'purchasePrice': purchasePrice,
       'location': location,
       'status': status,
+      'isAvailable': isAvailable, // Keep for compatibility
       'borrowedBy': borrowedBy,
-      'borrowedAt': borrowedAt,
-      'expectedReturnDate': expectedReturnDate,
+      'borrowedAt': borrowedAt != null ? Timestamp.fromDate(borrowedAt!) : null,
+      'expectedReturnDate': expectedReturnDate != null
+          ? Timestamp.fromDate(expectedReturnDate!)
+          : null,
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+      'assetCode': assetCode ?? serialNumber,
     };
   }
 
@@ -106,6 +129,7 @@ class Asset {
     String? createdBy,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? assetCode,
   }) {
     return Asset(
       id: id ?? this.id,
@@ -123,6 +147,29 @@ class Asset {
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      assetCode: assetCode ?? this.assetCode,
+    );
+  }
+
+  // Mark as borrowed
+  Asset markAsBorrowed(String userId, DateTime expectedReturn) {
+    return copyWith(
+      status: 'In Use',
+      borrowedBy: userId,
+      borrowedAt: DateTime.now(),
+      expectedReturnDate: expectedReturn,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  // Mark as returned
+  Asset markAsReturned() {
+    return copyWith(
+      status: 'Available',
+      borrowedBy: null,
+      borrowedAt: null,
+      expectedReturnDate: null,
+      updatedAt: DateTime.now(),
     );
   }
 }

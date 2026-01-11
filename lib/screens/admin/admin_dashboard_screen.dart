@@ -4,9 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../theme/cyberpunk_theme.dart';
 import '../../providers/admin_providers.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/admin_service.dart';
 import 'user_management_screen.dart';
-import 'reports_screen.dart';
+import 'reports/reports_screen.dart';
 import 'system_settings_screen.dart';
 import 'add_asset_screen.dart';
 import 'pending_requests_screen.dart'; // Import this!

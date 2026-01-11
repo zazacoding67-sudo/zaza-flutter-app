@@ -26,11 +26,20 @@ final activeBorrowingsProvider = StreamProvider.autoDispose((ref) {
   ).asyncMap((event) => event);
 });
 
-// Stream of user's active borrowings
+// Stream of user's active borrowings (Updated to match service change)
 final myActiveBorrowingsProvider = StreamProvider.autoDispose((ref) {
   final service = ref.watch(borrowingServiceProvider);
   return Stream.periodic(
     const Duration(seconds: 5),
     (_) => service.getMyActiveBorrowings(),
+  ).asyncMap((event) => event);
+});
+
+// ADD THIS NEW PROVIDER
+final myPendingRequestsProvider = StreamProvider.autoDispose((ref) {
+  final service = ref.watch(borrowingServiceProvider);
+  return Stream.periodic(
+    const Duration(seconds: 5),
+    (_) => service.getMyPendingRequests(),
   ).asyncMap((event) => event);
 });
