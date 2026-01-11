@@ -9,6 +9,7 @@ import 'user_management_screen.dart';
 import 'reports_screen.dart';
 import 'system_settings_screen.dart';
 import 'add_asset_screen.dart';
+import 'pending_requests_screen.dart'; // Import this!
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -168,18 +169,47 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           subtitle: '${(_activeLoans * 0.056).toInt()} overdue',
           color: CyberpunkTheme.primaryPink,
         ),
-        _buildStatCard(
-          icon: Icons.pending_actions,
-          value: _pendingRequests.toString(),
-          label: 'PENDING',
-          subtitle: 'Action needed',
-          color: CyberpunkTheme.primaryPurple,
+        // MAKE THIS CARD CLICKABLE
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PendingRequestsScreen(),
+              ),
+            ).then((_) => _loadDashboardData()); // Reload when coming back
+          },
+          child: _buildStatCardContent(
+            icon: Icons.pending_actions,
+            value: _pendingRequests.toString(),
+            label: 'PENDING',
+            subtitle: 'Action needed',
+            color: CyberpunkTheme.primaryPurple,
+          ),
         ),
       ],
     );
   }
 
+  // Helper method to build non-clickable cards
   Widget _buildStatCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required String subtitle,
+    required Color color,
+  }) {
+    return _buildStatCardContent(
+      icon: icon,
+      value: value,
+      label: label,
+      subtitle: subtitle,
+      color: color,
+    );
+  }
+
+  // The actual card UI
+  Widget _buildStatCardContent({
     required IconData icon,
     required String value,
     required String label,
