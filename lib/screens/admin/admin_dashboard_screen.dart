@@ -8,7 +8,7 @@ import '../../services/admin_service.dart';
 import 'user_management_screen.dart';
 import 'reports_screen.dart';
 import 'system_settings_screen.dart';
-import '../assets_screen.dart';
+import 'add_asset_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -526,9 +526,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   void _navigateToAddAsset() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const AssetsScreen()),
-    ).then((_) => _loadDashboardData());
-  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const AddAssetScreen()),
+  ).then((result) {
+    if (result == true) {
+      _loadDashboardData(); // Refresh data if asset was added successfully
+    }
+  });
 }
