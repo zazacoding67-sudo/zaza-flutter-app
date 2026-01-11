@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../models/user.dart' as app_user;
 import '../../providers/admin_providers.dart';
 import '../../providers/auth_provider.dart';
+import '../../theme/cyberpunk_theme.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
   const UserManagementScreen({super.key});
@@ -24,24 +24,56 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final currentUserAsync = ref.watch(appUserProvider);
 
     return Scaffold(
+      backgroundColor: CyberpunkTheme.deepBlack,
       body: Column(
         children: [
           // Search and Filter Bar
           Container(
             padding: const EdgeInsets.all(16),
-            color: Colors.white,
+            decoration: BoxDecoration(
+              color: CyberpunkTheme.surfaceDark,
+              border: Border(
+                bottom: BorderSide(
+                  color: CyberpunkTheme.primaryPink.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+            ),
             child: Column(
               children: [
                 // Search Bar
                 TextField(
+                  style: CyberpunkTheme.bodyText,
                   decoration: InputDecoration(
                     hintText: 'Search users...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    hintStyle: CyberpunkTheme.bodyText.copyWith(
+                      color: CyberpunkTheme.textMuted,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: CyberpunkTheme.primaryCyan,
                     ),
                     filled: true,
-                    fillColor: Colors.grey[100],
+                    fillColor: CyberpunkTheme.deepBlack,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: CyberpunkTheme.primaryPink,
+                        width: 2,
+                      ),
+                    ),
                   ),
                   onChanged: (value) {
                     setState(() => _searchQuery = value);
@@ -96,16 +128,10 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                         Icon(
                           Icons.people_outline,
                           size: 64,
-                          color: Colors.grey[300],
+                          color: CyberpunkTheme.textMuted,
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          'No users found',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                          ),
-                        ),
+                        Text('No users found', style: CyberpunkTheme.heading3),
                       ],
                     ),
                   );
@@ -125,9 +151,19 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) =>
-                  Center(child: Text('Error loading users: $error')),
+              loading: () => const Center(
+                child: CircularProgressIndicator(
+                  color: CyberpunkTheme.primaryPink,
+                ),
+              ),
+              error: (error, stack) => Center(
+                child: Text(
+                  'Error loading users: $error',
+                  style: CyberpunkTheme.bodyText.copyWith(
+                    color: CyberpunkTheme.primaryPink,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -136,8 +172,12 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         onPressed: () =>
             _showAddUserDialog(context, currentUserAsync.value?.id ?? ''),
         icon: const Icon(Icons.person_add),
-        label: const Text('Add User'),
-        backgroundColor: const Color(0xFF00897B),
+        label: Text(
+          'Add User',
+          style: CyberpunkTheme.buttonText.copyWith(fontSize: 12),
+        ),
+        backgroundColor: CyberpunkTheme.primaryCyan,
+        foregroundColor: Colors.white,
       ),
     );
   }
@@ -152,12 +192,21 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         onSelected: (selected) {
           setState(() => _filterRole = value);
         },
-        backgroundColor: Colors.grey[200],
-        selectedColor: const Color(0xFF00897B).withOpacity(0.2),
-        checkmarkColor: const Color(0xFF00897B),
-        labelStyle: GoogleFonts.poppins(
-          color: isSelected ? const Color(0xFF00897B) : Colors.grey[700],
+        backgroundColor: CyberpunkTheme.surfaceLight,
+        selectedColor: CyberpunkTheme.primaryPink.withOpacity(0.2),
+        checkmarkColor: CyberpunkTheme.primaryPink,
+        side: BorderSide(
+          color: isSelected
+              ? CyberpunkTheme.primaryPink
+              : CyberpunkTheme.textMuted.withOpacity(0.3),
+          width: isSelected ? 2 : 1,
+        ),
+        labelStyle: CyberpunkTheme.bodyText.copyWith(
+          color: isSelected
+              ? CyberpunkTheme.primaryPink
+              : CyberpunkTheme.textSecondary,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          fontSize: 12,
         ),
       ),
     );
@@ -167,134 +216,196 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     Color getRoleColor(String role) {
       switch (role.toLowerCase()) {
         case 'admin':
-          return Colors.amber;
+          return CyberpunkTheme.accentOrange;
         case 'staff':
-          return Colors.green;
+          return CyberpunkTheme.neonGreen;
         case 'student':
-          return Colors.blue;
+          return CyberpunkTheme.primaryCyan;
         default:
-          return Colors.grey;
+          return CyberpunkTheme.textMuted;
       }
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          radius: 28,
-          backgroundColor: getRoleColor(user.role).withOpacity(0.2),
-          child: Text(
-            user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
-            style: TextStyle(
-              color: getRoleColor(user.role),
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CyberpunkTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: getRoleColor(user.role).withOpacity(0.3),
+          width: 1,
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                user.name,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Avatar
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: getRoleColor(user.role), width: 2),
+                  color: getRoleColor(user.role).withOpacity(0.1),
+                ),
+                child: Center(
+                  child: Text(
+                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'U',
+                    style: CyberpunkTheme.heading2.copyWith(
+                      color: getRoleColor(user.role),
+                      fontSize: 24,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: getRoleColor(user.role).withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                user.role.toUpperCase(),
-                style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: getRoleColor(user.role),
+              const SizedBox(width: 16),
+              // User Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            user.name,
+                            style: CyberpunkTheme.heading3.copyWith(
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: getRoleColor(user.role).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: getRoleColor(user.role),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            user.role.toUpperCase(),
+                            style: CyberpunkTheme.buttonText.copyWith(
+                              fontSize: 9,
+                              color: getRoleColor(user.role),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          user.isActive ? Icons.check_circle : Icons.cancel,
+                          color: user.isActive
+                              ? CyberpunkTheme.neonGreen
+                              : CyberpunkTheme.primaryPink,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      user.email,
+                      style: CyberpunkTheme.bodyText.copyWith(
+                        fontSize: 13,
+                        color: CyberpunkTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID: ${user.staffId} • ${user.department}',
+                      style: CyberpunkTheme.bodyText.copyWith(
+                        fontSize: 11,
+                        color: CyberpunkTheme.textMuted,
+                      ),
+                    ),
+                    if (user.createdAt != null)
+                      Text(
+                        'Joined: ${DateFormat('MMM dd, yyyy').format(user.createdAt!)}',
+                        style: CyberpunkTheme.bodyText.copyWith(
+                          fontSize: 10,
+                          color: CyberpunkTheme.textMuted,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              user.isActive ? Icons.check_circle : Icons.cancel,
-              color: user.isActive ? Colors.green : Colors.red,
-              size: 20,
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(user.email, style: const TextStyle(fontSize: 13)),
-            Text(
-              'ID: ${user.staffId} • ${user.department}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            if (user.createdAt != null)
-              Text(
-                'Joined: ${DateFormat('MMM dd, yyyy').format(user.createdAt!)}',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-              ),
-          ],
-        ),
-        trailing: PopupMenuButton(
-          icon: const Icon(Icons.more_vert),
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              child: Row(
-                children: [
-                  const Icon(Icons.edit, size: 18),
-                  const SizedBox(width: 8),
-                  Text('Edit', style: GoogleFonts.poppins()),
+              // Menu
+              PopupMenuButton(
+                icon: Icon(
+                  Icons.more_vert,
+                  color: CyberpunkTheme.textSecondary,
+                ),
+                color: CyberpunkTheme.surfaceDark,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: CyberpunkTheme.primaryCyan,
+                        ),
+                        const SizedBox(width: 8),
+                        Text('Edit', style: CyberpunkTheme.bodyText),
+                      ],
+                    ),
+                    onTap: () {
+                      Future.delayed(
+                        Duration.zero,
+                        () => _showEditUserDialog(context, user, currentUserId),
+                      );
+                    },
+                  ),
+                  if (user.id != currentUserId)
+                    PopupMenuItem(
+                      child: Row(
+                        children: [
+                          Icon(
+                            user.isActive ? Icons.block : Icons.check_circle,
+                            size: 18,
+                            color: user.isActive
+                                ? CyberpunkTheme.primaryPink
+                                : CyberpunkTheme.neonGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            user.isActive ? 'Deactivate' : 'Activate',
+                            style: CyberpunkTheme.bodyText,
+                          ),
+                        ],
+                      ),
+                      onTap: () =>
+                          _toggleUserStatus(context, user, currentUserId),
+                    ),
+                  if (user.id != currentUserId)
+                    PopupMenuItem(
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete,
+                            size: 18,
+                            color: CyberpunkTheme.primaryPink,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Delete',
+                            style: CyberpunkTheme.bodyText.copyWith(
+                              color: CyberpunkTheme.primaryPink,
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () => _deleteUser(context, user, currentUserId),
+                    ),
                 ],
               ),
-              onTap: () {
-                Future.delayed(
-                  Duration.zero,
-                  () => _showEditUserDialog(context, user, currentUserId),
-                );
-              },
-            ),
-            if (user.id != currentUserId)
-              PopupMenuItem(
-                child: Row(
-                  children: [
-                    Icon(
-                      user.isActive ? Icons.block : Icons.check_circle,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      user.isActive ? 'Deactivate' : 'Activate',
-                      style: GoogleFonts.poppins(),
-                    ),
-                  ],
-                ),
-                onTap: () => _toggleUserStatus(context, user, currentUserId),
-              ),
-            if (user.id != currentUserId)
-              PopupMenuItem(
-                child: Row(
-                  children: [
-                    const Icon(Icons.delete, size: 18, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Delete',
-                      style: GoogleFonts.poppins(color: Colors.red),
-                    ),
-                  ],
-                ),
-                onTap: () => _deleteUser(context, user, currentUserId),
-              ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -310,44 +421,80 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Add New User', style: GoogleFonts.poppins()),
+        backgroundColor: CyberpunkTheme.surfaceDark,
+        title: Text(
+          'Add New User',
+          style: CyberpunkTheme.heading2.copyWith(fontSize: 20),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Full Name'),
-              ),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
+              _buildDialogTextField(nameController, 'Full Name', Icons.person),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                emailController,
+                'Email',
+                Icons.email,
                 keyboardType: TextInputType.emailAddress,
               ),
-              TextField(
-                controller: staffIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Staff/Student ID',
-                ),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                staffIdController,
+                'Staff/Student ID',
+                Icons.badge,
               ),
-              TextField(
-                controller: departmentController,
-                decoration: const InputDecoration(labelText: 'Department'),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                departmentController,
+                'Department',
+                Icons.business,
               ),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                passwordController,
+                'Password',
+                Icons.lock,
                 obscureText: true,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: selectedRole,
-                decoration: const InputDecoration(labelText: 'Role'),
+                dropdownColor: CyberpunkTheme.surfaceDark,
+                style: CyberpunkTheme.bodyText,
+                decoration: InputDecoration(
+                  labelText: 'Role',
+                  labelStyle: CyberpunkTheme.bodyText.copyWith(
+                    color: CyberpunkTheme.textSecondary,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryPink,
+                      width: 2,
+                    ),
+                  ),
+                ),
                 items: ['admin', 'staff', 'student']
                     .map(
                       (role) => DropdownMenuItem(
                         value: role,
-                        child: Text(role.toUpperCase()),
+                        child: Text(
+                          role.toUpperCase(),
+                          style: CyberpunkTheme.bodyText,
+                        ),
                       ),
                     )
                     .toList(),
@@ -361,7 +508,12 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: CyberpunkTheme.bodyText.copyWith(
+                color: CyberpunkTheme.textMuted,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -369,8 +521,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                   emailController.text.isEmpty ||
                   passwordController.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text('Please fill all required fields'),
+                    backgroundColor: CyberpunkTheme.primaryPink,
                   ),
                 );
                 return;
@@ -379,8 +532,11 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(
+                    color: CyberpunkTheme.primaryPink,
+                  ),
+                ),
               );
 
               try {
@@ -406,20 +562,72 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 Navigator.pop(context);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('User created successfully')),
+                  SnackBar(
+                    content: Text('User created successfully'),
+                    backgroundColor: CyberpunkTheme.neonGreen,
+                  ),
                 );
               } catch (e) {
                 Navigator.pop(context);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: CyberpunkTheme.primaryPink,
+                    ),
+                  );
                 }
               }
             },
-            child: const Text('Create'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CyberpunkTheme.primaryCyan,
+            ),
+            child: Text(
+              'Create',
+              style: CyberpunkTheme.buttonText.copyWith(fontSize: 12),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDialogTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool obscureText = false,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      style: CyberpunkTheme.bodyText,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: CyberpunkTheme.bodyText.copyWith(
+          color: CyberpunkTheme.textSecondary,
+        ),
+        prefixIcon: Icon(icon, color: CyberpunkTheme.primaryCyan),
+        filled: true,
+        fillColor: CyberpunkTheme.deepBlack,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: CyberpunkTheme.primaryPink, width: 2),
+        ),
       ),
     );
   }
@@ -437,34 +645,66 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Edit User', style: GoogleFonts.poppins()),
+        backgroundColor: CyberpunkTheme.surfaceDark,
+        title: Text(
+          'Edit User',
+          style: CyberpunkTheme.heading2.copyWith(fontSize: 20),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Full Name'),
+              _buildDialogTextField(nameController, 'Full Name', Icons.person),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                staffIdController,
+                'Staff/Student ID',
+                Icons.badge,
               ),
-              TextField(
-                controller: staffIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Staff/Student ID',
-                ),
-              ),
-              TextField(
-                controller: departmentController,
-                decoration: const InputDecoration(labelText: 'Department'),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                departmentController,
+                'Department',
+                Icons.business,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: selectedRole,
-                decoration: const InputDecoration(labelText: 'Role'),
+                dropdownColor: CyberpunkTheme.surfaceDark,
+                style: CyberpunkTheme.bodyText,
+                decoration: InputDecoration(
+                  labelText: 'Role',
+                  labelStyle: CyberpunkTheme.bodyText.copyWith(
+                    color: CyberpunkTheme.textSecondary,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: CyberpunkTheme.primaryPink,
+                      width: 2,
+                    ),
+                  ),
+                ),
                 items: ['admin', 'staff', 'student']
                     .map(
                       (role) => DropdownMenuItem(
                         value: role,
-                        child: Text(role.toUpperCase()),
+                        child: Text(
+                          role.toUpperCase(),
+                          style: CyberpunkTheme.bodyText,
+                        ),
                       ),
                     )
                     .toList(),
@@ -478,15 +718,23 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: CyberpunkTheme.bodyText.copyWith(
+                color: CyberpunkTheme.textMuted,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(
+                    color: CyberpunkTheme.primaryPink,
+                  ),
+                ),
               );
 
               try {
@@ -503,18 +751,30 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 Navigator.pop(context);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('User updated successfully')),
+                  SnackBar(
+                    content: Text('User updated successfully'),
+                    backgroundColor: CyberpunkTheme.neonGreen,
+                  ),
                 );
               } catch (e) {
                 Navigator.pop(context);
                 if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: CyberpunkTheme.primaryPink,
+                    ),
+                  );
                 }
               }
             },
-            child: const Text('Save'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CyberpunkTheme.primaryCyan,
+            ),
+            child: Text(
+              'Save',
+              style: CyberpunkTheme.buttonText.copyWith(fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -529,7 +789,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: CyberpunkTheme.primaryPink),
+      ),
     );
 
     try {
@@ -543,15 +805,19 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
             content: Text(
               'User ${!user.isActive ? 'activated' : 'deactivated'} successfully',
             ),
+            backgroundColor: CyberpunkTheme.neonGreen,
           ),
         );
       }
     } catch (e) {
       Navigator.pop(context);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: CyberpunkTheme.primaryPink,
+          ),
+        );
       }
     }
   }
@@ -564,17 +830,34 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete User'),
-        content: Text('Are you sure you want to delete ${user.name}?'),
+        backgroundColor: CyberpunkTheme.surfaceDark,
+        title: Text(
+          'Delete User',
+          style: CyberpunkTheme.heading2.copyWith(fontSize: 20),
+        ),
+        content: Text(
+          'Are you sure you want to delete ${user.name}?',
+          style: CyberpunkTheme.bodyText,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: CyberpunkTheme.bodyText.copyWith(
+                color: CyberpunkTheme.textMuted,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: CyberpunkTheme.primaryPink,
+            ),
+            child: Text(
+              'Delete',
+              style: CyberpunkTheme.buttonText.copyWith(fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -584,7 +867,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(color: CyberpunkTheme.primaryPink),
+        ),
       );
 
       try {
@@ -594,15 +879,21 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
         Navigator.pop(context);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('User deleted successfully')),
+            SnackBar(
+              content: Text('User deleted successfully'),
+              backgroundColor: CyberpunkTheme.neonGreen,
+            ),
           );
         }
       } catch (e) {
         Navigator.pop(context);
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: CyberpunkTheme.primaryPink,
+            ),
+          );
         }
       }
     }

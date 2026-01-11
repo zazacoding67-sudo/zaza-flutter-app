@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../theme/glass_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../theme/cyberpunk_theme.dart';
 import '../../providers/admin_providers.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/admin_service.dart';
 import 'user_management_screen.dart';
 import 'reports_screen.dart';
 import 'system_settings_screen.dart';
@@ -44,7 +47,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       setState(() {
         _totalUsers = stats['totalUsers'] ?? 0;
         _totalAssets = stats['totalAssets'] ?? 0;
-        _activeLoans = stats['activeLoans'] ?? 0;
+        _activeLoans = stats['activeBorrowings'] ?? 0;
         _pendingRequests = stats['pendingRequests'] ?? 0;
         _recentActivity = activity;
         _isLoading = false;
@@ -55,7 +58,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading dashboard: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: CyberpunkTheme.primaryPink,
           ),
         );
       }
@@ -65,36 +68,48 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              GlassTheme.primaryColor,
-              GlassTheme.secondaryColor,
-              GlassTheme.accentColor,
-            ],
+      backgroundColor: CyberpunkTheme.deepBlack,
+      appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: CyberpunkTheme.pinkCyanGradient,
           ),
         ),
-        child: SafeArea(
-          child: _selectedIndex == 0
-              ? _buildDashboardContent()
-              : _selectedIndex == 1
-              ? const UserManagementScreen()
-              : _selectedIndex == 2
-              ? const ReportsScreen()
-              : const SystemSettingsScreen(),
+        title: Text(
+          'ADMIN DASHBOARD',
+          style: CyberpunkTheme.heading3.copyWith(
+            fontSize: 16,
+            letterSpacing: 3,
+          ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadDashboardData,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () async {
+              await ref.read(authServiceProvider).signOut();
+            },
+          ),
+        ],
       ),
+      body: _selectedIndex == 0
+          ? _buildDashboardContent()
+          : _selectedIndex == 1
+          ? const UserManagementScreen()
+          : _selectedIndex == 2
+          ? const ReportsScreen()
+          : const SystemSettingsScreen(),
       bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
   Widget _buildDashboardContent() {
     if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: GlassTheme.accentColor),
+      return const Center(
+        child: CircularProgressIndicator(color: CyberpunkTheme.primaryPink),
       );
     }
 
@@ -105,67 +120,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           Future(() => _loadDashboardData()),
         ]);
       },
-      color: GlassTheme.accentColor,
+      color: CyberpunkTheme.primaryPink,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 30),
-              _buildStatsGrid(),
-              const SizedBox(height: 30),
-              _buildQuickActions(),
-              const SizedBox(height: 30),
-              _buildRecentActivity(),
-            ],
-          ),
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatsGrid(),
+            const SizedBox(height: 30),
+            _buildQuickActions(),
+            const SizedBox(height: 30),
+            _buildRecentActivity(),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: GlassTheme.glassDecoration(),
-      child: Row(
-        children: [
-          Icon(
-            Icons.admin_panel_settings,
-            color: GlassTheme.accentColor,
-            size: 32,
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ADMIN DASHBOARD',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                    fontFamily: 'Orbitron',
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'System Overview',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadDashboardData,
-          ),
-        ],
       ),
     );
   }
@@ -184,28 +152,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           value: _totalUsers.toString(),
           label: 'TOTAL USERS',
           subtitle: '+${(_totalUsers * 0.15).toInt()} this month',
-          color: GlassTheme.accentColor,
+          color: CyberpunkTheme.primaryCyan,
         ),
         _buildStatCard(
           icon: Icons.inventory,
           value: _totalAssets.toString(),
           label: 'TOTAL ASSETS',
-          subtitle: '$_totalAssets available',
-          color: const Color(0xFF00FF00),
+          subtitle: '${(_totalAssets * 0.5).toInt()} available',
+          color: CyberpunkTheme.neonGreen,
         ),
         _buildStatCard(
           icon: Icons.description,
           value: _activeLoans.toString(),
           label: 'ACTIVE LOANS',
           subtitle: '${(_activeLoans * 0.056).toInt()} overdue',
-          color: const Color(0xFFFF0080),
+          color: CyberpunkTheme.primaryPink,
         ),
         _buildStatCard(
           icon: Icons.pending_actions,
           value: _pendingRequests.toString(),
           label: 'PENDING',
           subtitle: 'Action needed',
-          color: const Color(0xFF8000FF),
+          color: CyberpunkTheme.primaryPurple,
         ),
       ],
     );
@@ -220,7 +188,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: GlassTheme.glassDecoration(),
+      decoration: BoxDecoration(
+        color: CyberpunkTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -231,11 +210,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               Icon(icon, color: color, size: 28),
               Text(
                 value,
-                style: TextStyle(
-                  color: color,
+                style: CyberpunkTheme.heading1.copyWith(
                   fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Orbitron',
+                  color: color,
                 ),
               ),
             ],
@@ -245,19 +222,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
+                style: CyberpunkTheme.heading3.copyWith(
+                  fontSize: 11,
+                  letterSpacing: 1.5,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
+                style: CyberpunkTheme.bodyText.copyWith(
                   fontSize: 10,
+                  color: CyberpunkTheme.textMuted,
                 ),
               ),
             ],
@@ -271,12 +246,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'QUICK ACTIONS',
-          style: TextStyle(
-            color: Colors.white,
+          style: CyberpunkTheme.heading2.copyWith(
             fontSize: 16,
-            fontWeight: FontWeight.bold,
             letterSpacing: 2,
           ),
         ),
@@ -288,25 +261,25 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             _buildActionButton(
               icon: Icons.person_add,
               label: 'ADD USER',
-              color: GlassTheme.accentColor,
+              color: CyberpunkTheme.primaryCyan,
               onTap: () => _navigateToAddUser(),
             ),
             _buildActionButton(
               icon: Icons.add_box,
               label: 'ADD ASSET',
-              color: const Color(0xFF00FF00),
+              color: CyberpunkTheme.neonGreen,
               onTap: () => _navigateToAddAsset(),
             ),
             _buildActionButton(
               icon: Icons.assessment,
               label: 'REPORTS',
-              color: const Color(0xFFFF0080),
+              color: CyberpunkTheme.primaryPink,
               onTap: () => setState(() => _selectedIndex = 2),
             ),
             _buildActionButton(
               icon: Icons.settings,
               label: 'SETTINGS',
-              color: const Color(0xFF8000FF),
+              color: CyberpunkTheme.primaryPurple,
               onTap: () => setState(() => _selectedIndex = 3),
             ),
           ],
@@ -325,8 +298,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: GlassTheme.glassDecoration().copyWith(
-          border: Border.all(color: color, width: 1),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: color, width: 2),
+          color: color.withOpacity(0.05),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -335,11 +310,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             const SizedBox(width: 10),
             Text(
               label,
-              style: TextStyle(
+              style: CyberpunkTheme.buttonText.copyWith(
+                fontSize: 11,
                 color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
               ),
             ),
           ],
@@ -352,26 +325,33 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'RECENT ACTIVITY',
-          style: TextStyle(
-            color: Colors.white,
+          style: CyberpunkTheme.heading2.copyWith(
             fontSize: 16,
-            fontWeight: FontWeight.bold,
             letterSpacing: 2,
           ),
         ),
         const SizedBox(height: 15),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: GlassTheme.glassDecoration(),
+          decoration: BoxDecoration(
+            color: CyberpunkTheme.surfaceDark,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: CyberpunkTheme.primaryCyan.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
           child: _recentActivity.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20.0),
+                    padding: const EdgeInsets.all(20.0),
                     child: Text(
                       'No recent activity',
-                      style: TextStyle(color: Colors.white70),
+                      style: CyberpunkTheme.bodyText.copyWith(
+                        color: CyberpunkTheme.textMuted,
+                      ),
                     ),
                   ),
                 )
@@ -380,7 +360,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: _recentActivity.length,
                   separatorBuilder: (context, index) =>
-                      Divider(color: Colors.white.withOpacity(0.1), height: 20),
+                      const Divider(color: Colors.white12, height: 20),
                   itemBuilder: (context, index) {
                     final activity = _recentActivity[index];
                     return _buildActivityItem(activity);
@@ -395,30 +375,47 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     IconData icon;
     Color color;
 
-    switch (activity['type']) {
-      case 'user_registered':
-        icon = Icons.person_add;
-        color = GlassTheme.accentColor;
-        break;
-      case 'borrowing_requested':
-        icon = Icons.request_page;
-        color = Colors.orange;
-        break;
-      case 'borrowing_approved':
-        icon = Icons.check_circle;
-        color = Colors.green;
-        break;
-      case 'borrowing_returned':
-        icon = Icons.assignment_return;
-        color = Colors.blue;
-        break;
-      case 'asset_added':
-        icon = Icons.add_box;
-        color = const Color(0xFF00FF00);
-        break;
-      default:
-        icon = Icons.circle_notifications;
-        color = Colors.white;
+    final action = activity['action']?.toString().toLowerCase() ?? '';
+
+    if (action.contains('user') && action.contains('create')) {
+      icon = Icons.person_add;
+      color = CyberpunkTheme.primaryCyan;
+    } else if (action.contains('borrow')) {
+      icon = action.contains('return')
+          ? Icons.assignment_return
+          : Icons.request_page;
+      color = action.contains('return')
+          ? CyberpunkTheme.neonGreen
+          : CyberpunkTheme.accentOrange;
+    } else if (action.contains('asset')) {
+      icon = Icons.add_box;
+      color = CyberpunkTheme.neonGreen;
+    } else if (action.contains('update')) {
+      icon = Icons.edit;
+      color = CyberpunkTheme.primaryPurple;
+    } else {
+      icon = Icons.circle_notifications;
+      color = CyberpunkTheme.textSecondary;
+    }
+
+    final timestamp = activity['timestamp'];
+    String timeString = '';
+    if (timestamp != null) {
+      try {
+        final date = timestamp is DateTime
+            ? timestamp
+            : (timestamp as Timestamp).toDate();
+        final diff = DateTime.now().difference(date);
+        if (diff.inMinutes < 60) {
+          timeString = '${diff.inMinutes}m ago';
+        } else if (diff.inHours < 24) {
+          timeString = '${diff.inHours}h ago';
+        } else {
+          timeString = '${diff.inDays}d ago';
+        }
+      } catch (e) {
+        timeString = '';
+      }
     }
 
     return Row(
@@ -437,52 +434,86 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                activity['title'] ?? 'Activity',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                activity['action'] ?? 'Activity',
+                style: CyberpunkTheme.heading3.copyWith(fontSize: 13),
               ),
               const SizedBox(height: 4),
               Text(
                 activity['description'] ?? '',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
-                  fontSize: 12,
+                style: CyberpunkTheme.bodyText.copyWith(
+                  fontSize: 11,
+                  color: CyberpunkTheme.textMuted,
                 ),
               ),
             ],
           ),
         ),
-        Text(
-          activity['time'] ?? '',
-          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
-        ),
+        if (timeString.isNotEmpty)
+          Text(
+            timeString,
+            style: CyberpunkTheme.bodyText.copyWith(
+              fontSize: 10,
+              color: CyberpunkTheme.textMuted,
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildBottomNavBar() {
     return Container(
-      decoration: GlassTheme.glassDecoration(),
-      child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+      decoration: BoxDecoration(
+        color: CyberpunkTheme.surfaceDark,
+        border: Border(
+          top: BorderSide(
+            color: CyberpunkTheme.primaryPink.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+      ),
+      child: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) =>
+            setState(() => _selectedIndex = index),
         backgroundColor: Colors.transparent,
-        selectedItemColor: GlassTheme.accentColor,
-        unselectedItemColor: Colors.white60,
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Users'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assessment),
+        indicatorColor: CyberpunkTheme.primaryPink.withOpacity(0.2),
+        destinations: [
+          NavigationDestination(
+            icon: Icon(
+              Icons.home_outlined,
+              color: CyberpunkTheme.textSecondary,
+            ),
+            selectedIcon: Icon(Icons.home, color: CyberpunkTheme.primaryPink),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(
+              Icons.people_outlined,
+              color: CyberpunkTheme.textSecondary,
+            ),
+            selectedIcon: Icon(Icons.people, color: CyberpunkTheme.primaryPink),
+            label: 'Users',
+          ),
+          NavigationDestination(
+            icon: Icon(
+              Icons.analytics_outlined,
+              color: CyberpunkTheme.textSecondary,
+            ),
+            selectedIcon: Icon(
+              Icons.analytics,
+              color: CyberpunkTheme.primaryPink,
+            ),
             label: 'Reports',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
+          NavigationDestination(
+            icon: Icon(
+              Icons.settings_outlined,
+              color: CyberpunkTheme.textSecondary,
+            ),
+            selectedIcon: Icon(
+              Icons.settings,
+              color: CyberpunkTheme.primaryPink,
+            ),
             label: 'Settings',
           ),
         ],
@@ -491,10 +522,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   void _navigateToAddUser() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const UserManagementScreen()),
-    ).then((_) => _loadDashboardData());
+    setState(() => _selectedIndex = 1);
   }
 
   void _navigateToAddAsset() {

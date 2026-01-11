@@ -1,6 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart' as app_user;
+import '../services/admin_service.dart';
+
+// ========== ADMIN SERVICE PROVIDER ==========
+final adminServiceProvider = Provider<AdminService>((ref) {
+  return AdminService();
+});
 
 // ========== DASHBOARD STATS ==========
 final dashboardStatsProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
