@@ -1,4 +1,4 @@
-// lib/screens/admin/admin_dashboard_screen.dart
+// lib/screens/admin/admin_dashboard_screen.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,7 +9,6 @@ import 'user_management_screen.dart';
 import 'reports/reports_screen.dart';
 import 'system_settings_screen.dart';
 import 'add_asset_screen.dart';
-import 'pending_requests_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -25,7 +24,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _totalUsers = 0;
   int _totalAssets = 0;
   int _activeLoans = 0;
-  int _pendingRequests = 0;
+  int _availableAssets = 0; // NEW: Show available instead of pending
   List<Map<String, dynamic>> _recentActivity = [];
 
   @override
@@ -49,7 +48,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         _totalUsers = stats['totalUsers'] ?? 0;
         _totalAssets = stats['totalAssets'] ?? 0;
         _activeLoans = stats['activeBorrowings'] ?? 0;
-        _pendingRequests = stats['pendingRequests'] ?? 0;
+        _availableAssets =
+            stats['availableAssets'] ?? 0; // Changed from pending
         _recentActivity = activity;
         _isLoading = false;
       });
@@ -196,64 +196,37 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           icon: Icons.people,
           value: _totalUsers.toString(),
           label: 'TOTAL USERS',
-          subtitle: '+${(_totalUsers * 0.15).toInt()} this month',
+          subtitle: 'All system users',
           color: CyberpunkTheme.primaryCyan,
         ),
         _buildStatCard(
           icon: Icons.inventory,
           value: _totalAssets.toString(),
           label: 'TOTAL ASSETS',
-          subtitle: '${(_totalAssets * 0.5).toInt()} available',
+          subtitle: '$_availableAssets available',
           color: CyberpunkTheme.neonGreen,
         ),
         _buildStatCard(
           icon: Icons.description,
           value: _activeLoans.toString(),
           label: 'ACTIVE LOANS',
-          subtitle: '${(_activeLoans * 0.056).toInt()} overdue',
+          subtitle: 'Currently borrowed',
           color: CyberpunkTheme.primaryPink,
         ),
-        // MAKE THIS CARD CLICKABLE
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const PendingRequestsScreen(),
-              ),
-            ).then((_) => _loadDashboardData()); // Reload when coming back
-          },
-          child: _buildStatCardContent(
-            icon: Icons.pending_actions,
-            value: _pendingRequests.toString(),
-            label: 'PENDING',
-            subtitle: 'Action needed',
-            color: CyberpunkTheme.primaryPurple,
-          ),
+        // REMOVED: Pending Requests Card
+        // Changed to show Available Assets
+        _buildStatCard(
+          icon: Icons.check_circle,
+          value: _availableAssets.toString(),
+          label: 'AVAILABLE',
+          subtitle: 'Ready to borrow',
+          color: CyberpunkTheme.primaryPurple,
         ),
       ],
     );
   }
 
-  // Helper method to build non-clickable cards
   Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required String subtitle,
-    required Color color,
-  }) {
-    return _buildStatCardContent(
-      icon: icon,
-      value: value,
-      label: label,
-      subtitle: subtitle,
-      color: color,
-    );
-  }
-
-  // The actual card UI
-  Widget _buildStatCardContent({
     required IconData icon,
     required String value,
     required String label,
@@ -605,7 +578,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       MaterialPageRoute(builder: (context) => const AddAssetScreen()),
     ).then((result) {
       if (result == true) {
-        _loadDashboardData(); // Refresh data if asset was added successfully
+        _loadDashboardData();
       }
     });
   }
