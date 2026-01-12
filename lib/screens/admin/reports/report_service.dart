@@ -3,32 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ReportService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Helper method to safely extract data from Firestore documents
-  Map<String, dynamic> _getDataFromDoc(DocumentSnapshot doc) {
-    return doc.data() as Map<String, dynamic>? ?? {};
-  }
-
-  // Helper method to safely extract data from QueryDocumentSnapshot
-  Map<String, dynamic> _getDataFromQueryDoc(QueryDocumentSnapshot doc) {
-    return doc.data() as Map<String, dynamic>? ?? {};
-  }
-
   // Parse timestamp from Firestore
   DateTime _parseTimestamp(dynamic timestamp) {
     if (timestamp == null) return DateTime.now();
-
-    if (timestamp is Timestamp) {
-      return timestamp.toDate();
-    } else if (timestamp is DateTime) {
-      return timestamp;
-    } else if (timestamp is String) {
+    if (timestamp is Timestamp) return timestamp.toDate();
+    if (timestamp is DateTime) return timestamp;
+    if (timestamp is String) {
       try {
         return DateTime.parse(timestamp);
       } catch (e) {
         return DateTime.now();
       }
     }
-
     return DateTime.now();
   }
 
@@ -37,86 +23,122 @@ class ReportService {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  // Get all statistics with optional filters
+  // ==================== MAIN METHOD ====================
   Future<Map<String, dynamic>> getAllStatistics({
     Map<String, dynamic>? filters,
   }) async {
     try {
-      // Get counts using Firestore aggregation
-      final usersCount = await _getUsersCount(filters);
-      final assetsCount = await _getAssetsCount(filters);
-      final activeBorrowingsCount = await _getActiveBorrowingsCount(filters);
-      final availableAssetsCount = await _getAvailableAssetsCount(filters);
+      print('🔍 Fetching statistics from Firestore...');
 
-      // Get detailed data
-      final recentUsers = await _getRecentUsers(5);
-      final recentAssets = await _getRecentAssets(5);
-      final recentBorrowings = await _getRecentBorrowings(5);
-      final auditLogs = await _getAuditLogs(10);
+      // Fetch all data in parallel
+      final results = await Future.wait([
+        _getUserStatistics(filters),
+        _getAssetStatistics(filters),
+        _getBorrowingStatistics(filters),
+        _getActivityStatistics(filters),
+      ]);
 
-      // Calculate utilization rate
-      final utilizationRate = assetsCount > 0
-          ? (activeBorrowingsCount / assetsCount) * 100
-          : 0;
+      final userStats = results[0];
+      final assetStats = results[1];
+      final borrowStats = results[2];
+      final activityStats = results[3];
+
+      print('✅ Statistics fetched successfully!');
+      print('Users: ${userStats['total']}');
+      print('Assets: ${assetStats['total']}');
+      print('Borrowings: ${borrowStats['active']}');
 
       return {
-        'summary': {
-          'totalUsers': usersCount,
-          'totalAssets': assetsCount,
-          'activeTransactions':
-              activeBorrowingsCount, // Keep key for UI compatibility
-          'availableAssets': availableAssetsCount,
-          'utilizationRate': utilizationRate,
-        },
-        'recentData': {
-          'users': recentUsers,
-          'assets': recentAssets,
-          'transactions': recentBorrowings, // Keep key for UI compatibility
-        },
-        'auditLogs': auditLogs,
-        'timestamp': DateTime.now().toIso8601String(),
+        'users': userStats,
+        'assets': assetStats,
+        'borrowings': borrowStats,
+        'activities': activityStats,
       };
     } catch (e) {
-      print('Error getting statistics: $e');
+      print('❌ Error getting statistics: $e');
       return {
-        'summary': {
-          'totalUsers': 0,
-          'totalAssets': 0,
-          'activeTransactions': 0,
-          'availableAssets': 0,
-          'utilizationRate': 0.0,
-        },
-        'recentData': {'users': [], 'assets': [], 'transactions': []},
-        'auditLogs': [],
-        'timestamp': DateTime.now().toIso8601String(),
+        'users': _emptyUserStats(),
+        'assets': _emptyAssetStats(),
+        'borrowings': _emptyBorrowingStats(),
+        'activities': _emptyActivityStats(),
       };
     }
   }
 
-  // Get users count
-  Future<int> _getUsersCount(Map<String, dynamic>? filters) async {
+  // ==================== USER STATISTICS ====================
+  Future<Map<String, dynamic>> _getUserStatistics(
+    Map<String, dynamic>? filters,
+  ) async {
     try {
       Query query = _firestore.collection('users');
 
-      // Apply filters if any
+      // Apply role filter if provided
       if (filters != null && filters['userRole'] != null) {
         query = query.where('role', isEqualTo: filters['userRole']);
       }
 
       final snapshot = await query.get();
-      return snapshot.size;
+      final users = snapshot.docs;
+
+      // Count by role
+      final Map<String, int> byRole = {};
+      int activeCount = 0;
+      int inactiveCount = 0;
+
+      for (var doc in users) {
+        final data = doc.data() as Map<String, dynamic>;
+        final role = (data['role'] ?? 'student').toString().toLowerCase();
+        final isActive = data['isActive'] ?? true;
+
+        byRole[role] = (byRole[role] ?? 0) + 1;
+
+        if (isActive) {
+          activeCount++;
+        } else {
+          inactiveCount++;
+        }
+      }
+
+      // Get recent users (last 10)
+      final recentUsersQuery = await _firestore
+          .collection('users')
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .get();
+
+      final recentUsers = recentUsersQuery.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? data['displayName'] ?? 'Unknown',
+          'email': data['email'] ?? '',
+          'role': data['role'] ?? 'student',
+          'createdAt': _parseTimestamp(data['createdAt']),
+          'status': (data['isActive'] ?? true) ? 'active' : 'inactive',
+        };
+      }).toList();
+
+      return {
+        'total': users.length,
+        'active': activeCount,
+        'inactive': inactiveCount,
+        'byRole': byRole.map((k, v) => MapEntry(k, v)),
+        'recent': recentUsers,
+      };
     } catch (e) {
-      print('Error getting users count: $e');
-      return 0;
+      print('❌ Error in _getUserStatistics: $e');
+      return _emptyUserStats();
     }
   }
 
-  // Get assets count
-  Future<int> _getAssetsCount(Map<String, dynamic>? filters) async {
+  // ==================== ASSET STATISTICS ====================
+  Future<Map<String, dynamic>> _getAssetStatistics(
+    Map<String, dynamic>? filters,
+  ) async {
     try {
       Query query = _firestore.collection('assets');
 
-      // Apply filters if any
+      // Apply filters
       if (filters != null) {
         if (filters['assetCategory'] != null) {
           query = query.where('category', isEqualTo: filters['assetCategory']);
@@ -127,88 +149,38 @@ class ReportService {
       }
 
       final snapshot = await query.get();
-      return snapshot.size;
-    } catch (e) {
-      print('Error getting assets count: $e');
-      return 0;
-    }
-  }
+      final assets = snapshot.docs;
 
-  // Get active borrowings count (instead of transactions)
-  Future<int> _getActiveBorrowingsCount(Map<String, dynamic>? filters) async {
-    try {
-      Query query = _firestore
-          .collection('borrowings')
-          .where('status', whereIn: ['pending', 'approved', 'borrowed']);
+      // Count by category and status
+      final Map<String, int> byCategory = {};
+      final Map<String, int> byStatus = {};
+      double totalValue = 0.0;
+      int availableCount = 0;
 
-      final snapshot = await query.get();
-      return snapshot.size;
-    } catch (e) {
-      print('Error getting active borrowings count: $e');
-      return 0;
-    }
-  }
+      for (var doc in assets) {
+        final data = doc.data() as Map<String, dynamic>;
+        final category = (data['category'] ?? 'Other').toString();
+        final status = (data['status'] ?? 'Available').toString();
+        final value = (data['purchasePrice'] ?? data['value'] ?? 0).toDouble();
 
-  // Get available assets count
-  Future<int> _getAvailableAssetsCount(Map<String, dynamic>? filters) async {
-    try {
-      Query query = _firestore
-          .collection('assets')
-          .where('status', isEqualTo: 'available');
+        byCategory[category] = (byCategory[category] ?? 0) + 1;
+        byStatus[status] = (byStatus[status] ?? 0) + 1;
+        totalValue += value;
 
-      if (filters != null && filters['assetCategory'] != null) {
-        query = query.where('category', isEqualTo: filters['assetCategory']);
+        if (status.toLowerCase() == 'available') {
+          availableCount++;
+        }
       }
 
-      final snapshot = await query.get();
-      return snapshot.size;
-    } catch (e) {
-      print('Error getting available assets count: $e');
-      return 0;
-    }
-  }
-
-  // Get recent users
-  Future<List<Map<String, dynamic>>> _getRecentUsers(int limit) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection('users')
-          .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get();
-
-      return querySnapshot.docs.map((doc) {
-        final data = _getDataFromDoc(doc);
-        return {
-          'id': doc.id,
-          'name':
-              data['name'] ??
-              data['displayName'] ??
-              data['fullName'] ??
-              'Unknown',
-          'email': data['email'] ?? '',
-          'role': data['role'] ?? data['userType'] ?? 'student',
-          'createdAt': _formatDate(_parseTimestamp(data['createdAt'])),
-          'status': data['isActive'] == true ? 'active' : 'inactive',
-        };
-      }).toList();
-    } catch (e) {
-      print('Error getting recent users: $e');
-      return [];
-    }
-  }
-
-  // Get recent assets
-  Future<List<Map<String, dynamic>>> _getRecentAssets(int limit) async {
-    try {
-      final querySnapshot = await _firestore
+      // Get recent assets (last 10)
+      final recentAssetsQuery = await _firestore
           .collection('assets')
           .orderBy('createdAt', descending: true)
-          .limit(limit)
+          .limit(10)
           .get();
 
-      return querySnapshot.docs.map((doc) {
-        final data = _getDataFromQueryDoc(doc);
+      final recentAssets = recentAssetsQuery.docs.map((doc) {
+        final data = doc.data();
         return {
           'id': doc.id,
           'name': data['name'] ?? data['assetName'] ?? 'Unknown',
@@ -216,98 +188,232 @@ class ReportService {
           'status': data['status'] ?? 'Available',
           'value': (data['purchasePrice'] ?? data['value'] ?? 0).toDouble(),
           'location': data['location'] ?? 'Unknown',
-          'createdAt': _formatDate(_parseTimestamp(data['createdAt'])),
+          'createdAt': _parseTimestamp(data['createdAt']),
         };
       }).toList();
+
+      return {
+        'total': assets.length,
+        'available': availableCount,
+        'inUse': byStatus['In Use'] ?? byStatus['in use'] ?? 0,
+        'maintenance': byStatus['Maintenance'] ?? byStatus['maintenance'] ?? 0,
+        'totalValue': totalValue,
+        'byCategory': byCategory,
+        'byStatus': byStatus,
+        'recent': recentAssets,
+      };
     } catch (e) {
-      print('Error getting recent assets: $e');
-      return [];
+      print('❌ Error in _getAssetStatistics: $e');
+      return _emptyAssetStats();
     }
   }
 
-  // Get recent borrowings (instead of transactions)
-  Future<List<Map<String, dynamic>>> _getRecentBorrowings(int limit) async {
+  // ==================== BORROWING STATISTICS ====================
+  Future<Map<String, dynamic>> _getBorrowingStatistics(
+    Map<String, dynamic>? filters,
+  ) async {
     try {
-      final querySnapshot = await _firestore
+      final snapshot = await _firestore.collection('borrowings').get();
+      final borrowings = snapshot.docs;
+
+      int activeCount = 0;
+      int pendingCount = 0;
+      int returnedCount = 0;
+      int overdueCount = 0;
+      int rejectedCount = 0;
+
+      // Monthly trends for chart (last 6 months)
+      final now = DateTime.now();
+      final Map<String, int> monthlyTrends = {};
+
+      for (int i = 5; i >= 0; i--) {
+        final month = DateTime(now.year, now.month - i, 1);
+        final monthKey =
+            '${month.year}-${month.month.toString().padLeft(2, '0')}';
+        monthlyTrends[monthKey] = 0;
+      }
+
+      for (var doc in borrowings) {
+        final data = doc.data();
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        final requestedDate = _parseTimestamp(data['requestedDate']);
+        final expectedReturnDate = data['expectedReturnDate'] != null
+            ? _parseTimestamp(data['expectedReturnDate'])
+            : null;
+
+        // Count by status
+        if (status == 'active' ||
+            status == 'borrowed' ||
+            status == 'approved') {
+          activeCount++;
+
+          // Check if overdue
+          if (expectedReturnDate != null &&
+              expectedReturnDate.isBefore(DateTime.now())) {
+            overdueCount++;
+          }
+        } else if (status == 'pending') {
+          pendingCount++;
+        } else if (status == 'returned' || status == 'completed') {
+          returnedCount++;
+        } else if (status == 'rejected' || status == 'cancelled') {
+          rejectedCount++;
+        }
+
+        // Add to monthly trends
+        final monthKey =
+            '${requestedDate.year}-${requestedDate.month.toString().padLeft(2, '0')}';
+        if (monthlyTrends.containsKey(monthKey)) {
+          monthlyTrends[monthKey] = (monthlyTrends[monthKey] ?? 0) + 1;
+        }
+      }
+
+      // Convert monthly trends to list format for chart
+      final monthlyTrendsList = monthlyTrends.entries.map((entry) {
+        final parts = entry.key.split('-');
+        final year = int.parse(parts[0]);
+        final month = int.parse(parts[1]);
+        final monthName = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ][month - 1];
+
+        return {'month': monthName, 'count': entry.value, 'year': year};
+      }).toList();
+
+      // Get recent borrowings (last 10)
+      final recentBorrowingsQuery = await _firestore
           .collection('borrowings')
           .orderBy('requestedDate', descending: true)
-          .limit(limit)
+          .limit(10)
           .get();
 
-      return querySnapshot.docs.map((doc) {
-        final data = _getDataFromQueryDoc(doc);
+      final recentBorrowings = recentBorrowingsQuery.docs.map((doc) {
+        final data = doc.data();
         return {
           'id': doc.id,
-          'assetName': data['assetName'] ?? data['assetId'] ?? 'Unknown',
-          'userName': data['userName'] ?? data['userId'] ?? 'Unknown',
+          'assetName': data['assetName'] ?? 'Unknown',
+          'userName': data['userName'] ?? 'Unknown',
           'status': data['status'] ?? 'pending',
-          'requestedDate': _formatDate(_parseTimestamp(data['requestedDate'])),
+          'requestedDate': _parseTimestamp(data['requestedDate']),
           'approvedDate': data['approvedDate'] != null
-              ? _formatDate(_parseTimestamp(data['approvedDate']))
-              : '-',
+              ? _parseTimestamp(data['approvedDate'])
+              : null,
           'returnedDate': data['actualReturnDate'] != null
-              ? _formatDate(_parseTimestamp(data['actualReturnDate']))
-              : '-',
+              ? _parseTimestamp(data['actualReturnDate'])
+              : null,
           'expectedReturnDate': data['expectedReturnDate'] != null
-              ? _formatDate(_parseTimestamp(data['expectedReturnDate']))
-              : '-',
+              ? _parseTimestamp(data['expectedReturnDate'])
+              : null,
         };
       }).toList();
+
+      return {
+        'total': borrowings.length,
+        'active': activeCount,
+        'pending': pendingCount,
+        'returned': returnedCount,
+        'overdue': overdueCount,
+        'rejected': rejectedCount,
+        'monthlyTrends': monthlyTrendsList,
+        'recent': recentBorrowings,
+      };
     } catch (e) {
-      print('Error getting recent borrowings: $e');
-      return [];
+      print('❌ Error in _getBorrowingStatistics: $e');
+      return _emptyBorrowingStats();
     }
   }
 
-  // Get audit logs
-  Future<List<Map<String, dynamic>>> _getAuditLogs(int limit) async {
+  // ==================== ACTIVITY STATISTICS ====================
+  Future<Map<String, dynamic>> _getActivityStatistics(
+    Map<String, dynamic>? filters,
+  ) async {
     try {
-      final querySnapshot = await _firestore
-          .collection('audit_logs')
-          .orderBy('timestamp', descending: true)
-          .limit(limit)
-          .get();
+      // Try both collection names
+      QuerySnapshot? snapshot;
+      try {
+        snapshot = await _firestore
+            .collection('activity_logs')
+            .orderBy('timestamp', descending: true)
+            .limit(20)
+            .get();
+      } catch (e) {
+        // Try audit_logs if activity_logs doesn't exist
+        snapshot = await _firestore
+            .collection('audit_logs')
+            .orderBy('timestamp', descending: true)
+            .limit(20)
+            .get();
+      }
 
-      return querySnapshot.docs.map((doc) {
-        final data = _getDataFromQueryDoc(doc);
+      final activities = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
         return {
           'id': doc.id,
-          'action': data['action'] ?? 'Unknown',
+          'action': data['action'] ?? 'Unknown Action',
+          'description': data['description'] ?? '',
           'performedBy': data['performedBy'] ?? 'System',
           'performedByName': data['performedByName'] ?? 'System',
-          'details': data['details'] ?? {},
-          'timestamp': _formatDate(_parseTimestamp(data['timestamp'])),
-          'time': _parseTimestamp(data['timestamp']).toIso8601String(),
+          'userId': data['userId'],
+          'timestamp': _parseTimestamp(data['timestamp']),
         };
       }).toList();
+
+      return {'total': activities.length, 'recent': activities};
     } catch (e) {
-      print('Error getting audit logs: $e');
-      return [];
+      print('❌ Error in _getActivityStatistics: $e');
+      return _emptyActivityStats();
     }
   }
 
-  // Export data to CSV
-  Future<String> exportDataToCsv(
-    String dataType,
-    Map<String, dynamic>? filters,
-  ) async {
-    // Implementation for CSV export
-    return 'CSV export not implemented yet';
+  // ==================== EMPTY STATS ====================
+  Map<String, dynamic> _emptyUserStats() {
+    return {
+      'total': 0,
+      'active': 0,
+      'inactive': 0,
+      'byRole': <String, int>{},
+      'recent': <Map<String, dynamic>>[],
+    };
   }
 
-  // Get chart data for visualization
-  Future<Map<String, dynamic>> getChartData(
-    Map<String, dynamic>? filters,
-  ) async {
-    // Implementation for chart data
-    return {};
+  Map<String, dynamic> _emptyAssetStats() {
+    return {
+      'total': 0,
+      'available': 0,
+      'inUse': 0,
+      'maintenance': 0,
+      'totalValue': 0.0,
+      'byCategory': <String, int>{},
+      'byStatus': <String, int>{},
+      'recent': <Map<String, dynamic>>[],
+    };
   }
 
-  // Get filtered reports
-  Future<Map<String, dynamic>> getFilteredReports(
-    Map<String, dynamic> filters,
-  ) async {
-    // Implementation for filtered reports
-    return {};
+  Map<String, dynamic> _emptyBorrowingStats() {
+    return {
+      'total': 0,
+      'active': 0,
+      'pending': 0,
+      'returned': 0,
+      'overdue': 0,
+      'rejected': 0,
+      'monthlyTrends': <Map<String, dynamic>>[],
+      'recent': <Map<String, dynamic>>[],
+    };
+  }
+
+  Map<String, dynamic> _emptyActivityStats() {
+    return {'total': 0, 'recent': <Map<String, dynamic>>[]};
   }
 }
