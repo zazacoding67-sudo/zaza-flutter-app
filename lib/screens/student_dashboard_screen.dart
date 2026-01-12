@@ -1,10 +1,12 @@
-// lib/screens/student_dashboard_screen.dart - REDESIGNED WITH PINK/BLACK THEME
+// lib/screens/student_dashboard_screen.dart - WITH MEMO POPUP
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart' as app_user;
 import '../theme/cyberpunk_theme.dart';
+import '../widgets/memo_notification_widget.dart';
 import 'assets_screen.dart';
 import 'my_borrowed_screen.dart';
 import 'student_notifications_screen.dart';
@@ -47,6 +49,8 @@ class _StudentDashboardScreenState extends ConsumerState<StudentDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
       backgroundColor: CyberpunkTheme.deepBlack,
       extendBody: true,
@@ -87,18 +91,69 @@ class _StudentDashboardScreenState extends ConsumerState<StudentDashboardScreen>
           ),
         ),
         actions: [
+          // Memo Badge
+          if (user != null)
+            UnreadMemoCount(
+              userId: user.uid,
+              builder: (context, count) {
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.mail_outline, color: Colors.white),
+                      onPressed: () {
+                        // Navigate to memos screen
+                      },
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: CyberpunkTheme.neonGreen,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: CyberpunkTheme.neonGreen.withOpacity(
+                                  0.5,
+                                ),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            count > 9 ? '9+' : count.toString(),
+                            style: GoogleFonts.rajdhani(
+                              color: Colors.black,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+
           // QR Scanner Button
           IconButton(
             icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const StudentQRScannerScreen(),
                 ),
               );
+              // Refresh if needed
+              if (result == true && mounted) {
+                setState(() {});
+              }
             },
           ),
+
           // Logout
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -108,9 +163,16 @@ class _StudentDashboardScreenState extends ConsumerState<StudentDashboardScreen>
           ),
         ],
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _screens[_selectedIndex],
+      body: Stack(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _screens[_selectedIndex],
+          ),
+
+          // Memo Popup Overlay
+          if (user != null) const MemoNotificationWidget(),
+        ],
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
@@ -248,21 +310,14 @@ class _StudentHomeState extends ConsumerState<_StudentHome>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Animated Welcome Card
           _buildWelcomeCard(user),
           const SizedBox(height: 24),
-
-          // Quick Stats Row
           _buildQuickStats(),
           const SizedBox(height: 24),
-
-          // Feature Cards Grid
           _buildFeatureGrid(context),
           const SizedBox(height: 24),
-
-          // Recent Activity
           _buildRecentActivity(),
-          const SizedBox(height: 100), // Bottom padding for nav
+          const SizedBox(height: 100),
         ],
       ),
     );
@@ -296,7 +351,6 @@ class _StudentHomeState extends ConsumerState<_StudentHome>
           ),
           child: Row(
             children: [
-              // Animated Avatar
               Container(
                 width: 70,
                 height: 70,
@@ -487,8 +541,8 @@ class _StudentHomeState extends ConsumerState<_StudentHome>
           'QR SCAN\nQUICK BORROW',
           Icons.qr_code_scanner,
           CyberpunkTheme.neonGreen,
-          () {
-            Navigator.push(
+          () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const StudentQRScannerScreen()),
             );
