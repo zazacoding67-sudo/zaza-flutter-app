@@ -1,10 +1,14 @@
+// lib/screens/student_dashboard_screen.dart - REDESIGNED WITH PINK/BLACK THEME
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart' as app_user;
 import '../theme/cyberpunk_theme.dart';
 import 'assets_screen.dart';
 import 'my_borrowed_screen.dart';
+import 'student_notifications_screen.dart';
+import 'student_qr_scanner_screen.dart';
 
 class StudentDashboardScreen extends ConsumerStatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -14,34 +18,88 @@ class StudentDashboardScreen extends ConsumerStatefulWidget {
       _StudentDashboardScreenState();
 }
 
-class _StudentDashboardScreenState
-    extends ConsumerState<StudentDashboardScreen> {
+class _StudentDashboardScreenState extends ConsumerState<StudentDashboardScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  late AnimationController _fabController;
 
   final List<Widget> _screens = [
     const _StudentHome(),
     const AssetsScreen(),
     const MyBorrowedScreen(),
+    const StudentNotificationsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fabController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  @override
+  void dispose() {
+    _fabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: CyberpunkTheme.deepBlack,
+      extendBody: true,
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: CyberpunkTheme.pinkPurpleGradient,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                CyberpunkTheme.primaryPink,
+                CyberpunkTheme.primaryPink.withOpacity(0.7),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: CyberpunkTheme.primaryPink.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
         ),
-        title: Text(
-          'STUDENT PORTAL',
-          style: CyberpunkTheme.heading3.copyWith(
-            fontSize: 16,
-            letterSpacing: 3,
+        title: ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [Colors.white, Color(0xFFFFE0F0)],
+          ).createShader(bounds),
+          child: Text(
+            'STUDENT PORTAL',
+            style: GoogleFonts.orbitron(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 3,
+              color: Colors.white,
+            ),
           ),
         ),
         actions: [
+          // QR Scanner Button
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StudentQRScannerScreen(),
+                ),
+              );
+            },
+          ),
+          // Logout
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
@@ -50,51 +108,79 @@ class _StudentDashboardScreenState
           ),
         ],
       ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: CyberpunkTheme.surfaceDark,
-          border: Border(
-            top: BorderSide(
-              color: CyberpunkTheme.primaryPink.withOpacity(0.2),
-              width: 1,
-            ),
-          ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _screens[_selectedIndex],
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildBottomNav() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: CyberpunkTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: CyberpunkTheme.primaryPink.withOpacity(0.3),
+          width: 2,
         ),
-        child: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) {
-            setState(() => _selectedIndex = index);
-          },
-          backgroundColor: Colors.transparent,
-          indicatorColor: CyberpunkTheme.primaryPink.withOpacity(0.2),
-          destinations: [
-            NavigationDestination(
-              icon: Icon(
-                Icons.home_outlined,
-                color: CyberpunkTheme.textSecondary,
-              ),
-              selectedIcon: Icon(Icons.home, color: CyberpunkTheme.primaryPink),
-              label: 'Home',
+        boxShadow: [
+          BoxShadow(
+            color: CyberpunkTheme.primaryPink.withOpacity(0.2),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(Icons.home_rounded, 'Home', 0),
+          _buildNavItem(Icons.explore, 'Explore', 1),
+          _buildNavItem(Icons.card_giftcard, 'My Items', 2),
+          _buildNavItem(Icons.notifications, 'Alerts', 3),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+    return InkWell(
+      onTap: () => setState(() => _selectedIndex = index),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? CyberpunkTheme.primaryPink.withOpacity(0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? CyberpunkTheme.primaryPink
+                  : CyberpunkTheme.textMuted,
+              size: 24,
             ),
-            NavigationDestination(
-              icon: Icon(Icons.search, color: CyberpunkTheme.textSecondary),
-              selectedIcon: Icon(
-                Icons.search,
-                color: CyberpunkTheme.primaryPink,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.rajdhani(
+                color: isSelected
+                    ? CyberpunkTheme.primaryPink
+                    : CyberpunkTheme.textMuted,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
               ),
-              label: 'Browse',
-            ),
-            NavigationDestination(
-              icon: Icon(
-                Icons.shopping_bag_outlined,
-                color: CyberpunkTheme.textSecondary,
-              ),
-              selectedIcon: Icon(
-                Icons.shopping_bag,
-                color: CyberpunkTheme.primaryPink,
-              ),
-              label: 'My Items',
             ),
           ],
         ),
@@ -103,11 +189,42 @@ class _StudentDashboardScreenState
   }
 }
 
-class _StudentHome extends ConsumerWidget {
+// ==================== STUDENT HOME SCREEN ====================
+class _StudentHome extends ConsumerStatefulWidget {
   const _StudentHome();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StudentHome> createState() => _StudentHomeState();
+}
+
+class _StudentHomeState extends ConsumerState<_StudentHome>
+    with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late AnimationController _slideController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final userAsync = ref.watch(appUserProvider);
 
     return userAsync.when(
@@ -115,19 +232,13 @@ class _StudentHome extends ConsumerWidget {
         if (user == null) {
           return const Center(child: Text('No user data'));
         }
-
         return _buildHomeContent(user, context);
       },
-      error: (error, stackTrace) {
-        return Center(
-          child: Text('Error: $error', style: CyberpunkTheme.bodyText),
-        );
-      },
-      loading: () {
-        return const Center(
-          child: CircularProgressIndicator(color: CyberpunkTheme.primaryPink),
-        );
-      },
+      error: (error, _) =>
+          Center(child: Text('Error: $error', style: CyberpunkTheme.bodyText)),
+      loading: () => Center(
+        child: CircularProgressIndicator(color: CyberpunkTheme.primaryPink),
+      ),
     );
   }
 
@@ -137,59 +248,126 @@ class _StudentHome extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Welcome Card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: CyberpunkTheme.pinkPurpleGradient,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: CyberpunkTheme.primaryPink.withOpacity(0.3),
-                  blurRadius: 30,
-                  spreadRadius: 5,
-                ),
+          // Animated Welcome Card
+          _buildWelcomeCard(user),
+          const SizedBox(height: 24),
+
+          // Quick Stats Row
+          _buildQuickStats(),
+          const SizedBox(height: 24),
+
+          // Feature Cards Grid
+          _buildFeatureGrid(context),
+          const SizedBox(height: 24),
+
+          // Recent Activity
+          _buildRecentActivity(),
+          const SizedBox(height: 100), // Bottom padding for nav
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWelcomeCard(app_user.User user) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                CyberpunkTheme.primaryPink,
+                CyberpunkTheme.primaryPink.withOpacity(0.7),
               ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: CyberpunkTheme.primaryPink.withOpacity(
+                  0.3 + (_pulseController.value * 0.2),
+                ),
+                blurRadius: 30 + (_pulseController.value * 10),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Animated Avatar
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.3),
+                      blurRadius: 20,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    user.name.isNotEmpty ? user.name[0].toUpperCase() : 'S',
+                    style: GoogleFonts.orbitron(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                      ),
-                      child: Center(
-                        child: Text(
-                          user.name.isNotEmpty
-                              ? user.name[0].toUpperCase()
-                              : 'S',
-                          style: CyberpunkTheme.heading1.copyWith(fontSize: 28),
-                        ),
+                    Text(
+                      'WELCOME BACK',
+                      style: GoogleFonts.rajdhani(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        letterSpacing: 2,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 4),
+                    Text(
+                      user.name.toUpperCase(),
+                      style: GoogleFonts.orbitron(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'WELCOME BACK',
-                            style: CyberpunkTheme.bodyText.copyWith(
-                              color: Colors.white70,
-                              fontSize: 11,
-                              letterSpacing: 2,
-                            ),
+                          const Icon(
+                            Icons.badge,
+                            color: Colors.white,
+                            size: 16,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(width: 8),
                           Text(
-                            user.name.toUpperCase(),
-                            style: CyberpunkTheme.heading2.copyWith(
-                              fontSize: 20,
+                            user.staffId,
+                            style: GoogleFonts.rajdhani(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -197,202 +375,46 @@ class _StudentHome extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.badge, color: Colors.white, size: 20),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'STUDENT ID',
-                            style: CyberpunkTheme.bodyText.copyWith(
-                              fontSize: 10,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          Text(
-                            user.staffId,
-                            style: CyberpunkTheme.heading3.copyWith(
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Quick Access
-          Text(
-            'QUICK ACCESS',
-            style: CyberpunkTheme.heading2.copyWith(
-              fontSize: 16,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.2,
-            children: [
-              _buildActionCard(
-                context,
-                'BROWSE\nASSETS',
-                Icons.search,
-                CyberpunkTheme.primaryCyan,
-                () {
-                  final state = context
-                      .findAncestorStateOfType<_StudentDashboardScreenState>();
-                  state?.setState(() => state._selectedIndex = 1);
-                },
-              ),
-              _buildActionCard(
-                context,
-                'MY\nITEMS',
-                Icons.shopping_bag,
-                CyberpunkTheme.primaryPink,
-                () {
-                  final state = context
-                      .findAncestorStateOfType<_StudentDashboardScreenState>();
-                  state?.setState(() => state._selectedIndex = 2);
-                },
-              ),
-              _buildActionCard(
-                context,
-                'HISTORY',
-                Icons.history,
-                CyberpunkTheme.primaryPurple,
-                () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'COMING SOON',
-                        style: CyberpunkTheme.buttonText,
-                      ),
-                      backgroundColor: CyberpunkTheme.surfaceDark,
-                    ),
-                  );
-                },
-              ),
-              _buildActionCard(
-                context,
-                'HELP',
-                Icons.help_outline,
-                CyberpunkTheme.neonGreen,
-                () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'COMING SOON',
-                        style: CyberpunkTheme.buttonText,
-                      ),
-                      backgroundColor: CyberpunkTheme.surfaceDark,
-                    ),
-                  );
-                },
               ),
             ],
           ),
-
-          const SizedBox(height: 32),
-
-          // Stats
-          Text(
-            'YOUR STATS',
-            style: CyberpunkTheme.heading2.copyWith(
-              fontSize: 16,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  '5',
-                  'ITEMS BORROWED',
-                  CyberpunkTheme.primaryPink,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatCard(
-                  '2',
-                  'CURRENTLY ACTIVE',
-                  CyberpunkTheme.primaryCyan,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildActionCard(
-    BuildContext context,
-    String title,
+  Widget _buildQuickStats() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            '5',
+            'TOTAL BORROWED',
+            Icons.inventory,
+            CyberpunkTheme.primaryPink,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            '2',
+            'ACTIVE NOW',
+            Icons.timer,
+            CyberpunkTheme.neonGreen,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String value,
+    String label,
     IconData icon,
     Color color,
-    VoidCallback onTap,
   ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: CyberpunkTheme.surfaceDark,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40, color: color),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: CyberpunkTheme.heading3.copyWith(
-                fontSize: 12,
-                height: 1.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String value, String label, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: CyberpunkTheme.surfaceDark,
         borderRadius: BorderRadius.circular(16),
@@ -407,18 +429,198 @@ class _StudentHome extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: CyberpunkTheme.heading1.copyWith(fontSize: 36, color: color),
-          ),
+          Icon(icon, color: color, size: 32),
           const SizedBox(height: 8),
           Text(
+            value,
+            style: GoogleFonts.orbitron(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
             label,
-            style: CyberpunkTheme.bodyText.copyWith(
+            style: GoogleFonts.rajdhani(
               fontSize: 10,
               letterSpacing: 1,
+              color: CyberpunkTheme.textMuted,
             ),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureGrid(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.1,
+      children: [
+        _buildFeatureCard(
+          'EXPLORE\nASSETS',
+          Icons.explore,
+          CyberpunkTheme.primaryPink,
+          () {
+            final state = context
+                .findAncestorStateOfType<_StudentDashboardScreenState>();
+            state?.setState(() => state._selectedIndex = 1);
+          },
+        ),
+        _buildFeatureCard(
+          'MY BORROWED\nITEMS',
+          Icons.card_giftcard,
+          CyberpunkTheme.primaryCyan,
+          () {
+            final state = context
+                .findAncestorStateOfType<_StudentDashboardScreenState>();
+            state?.setState(() => state._selectedIndex = 2);
+          },
+        ),
+        _buildFeatureCard(
+          'QR SCAN\nQUICK BORROW',
+          Icons.qr_code_scanner,
+          CyberpunkTheme.neonGreen,
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StudentQRScannerScreen()),
+            );
+          },
+        ),
+        _buildFeatureCard(
+          'NOTIFICATIONS\n& ALERTS',
+          Icons.notifications_active,
+          CyberpunkTheme.accentOrange,
+          () {
+            final state = context
+                .findAncestorStateOfType<_StudentDashboardScreenState>();
+            state?.setState(() => state._selectedIndex = 3);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard(
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: CyberpunkTheme.surfaceDark,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.3), width: 2),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 20)],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 48, color: color),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: GoogleFonts.rajdhani(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: CyberpunkTheme.textPrimary,
+                height: 1.2,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'RECENT ACTIVITY',
+          style: GoogleFonts.orbitron(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+            color: CyberpunkTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildActivityItem(
+          'Borrowed: Laptop HP ProBook',
+          '2 days ago',
+          Icons.arrow_upward,
+          CyberpunkTheme.neonGreen,
+        ),
+        _buildActivityItem(
+          'Request Pending: Camera Canon',
+          '3 days ago',
+          Icons.pending,
+          CyberpunkTheme.accentOrange,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityItem(
+    String title,
+    String time,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: CyberpunkTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.rajdhani(
+                    color: CyberpunkTheme.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  time,
+                  style: GoogleFonts.rajdhani(
+                    color: CyberpunkTheme.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

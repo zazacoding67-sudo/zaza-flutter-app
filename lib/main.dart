@@ -23,7 +23,7 @@ class ZazaApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Zaza Asset Management',
       debugShowCheckedModeBanner: false,
-      theme: CyberpunkTheme.theme, // ✅ Using Cyberpunk Theme
+      theme: CyberpunkTheme.theme,
       home: authState.when(
         data: (user) => user != null ? const HomeScreen() : const LoginScreen(),
         loading: () => Scaffold(
@@ -32,7 +32,6 @@ class ZazaApp extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Cyberpunk loading indicator
                 Container(
                   width: 60,
                   height: 60,

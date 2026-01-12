@@ -1,4 +1,4 @@
-// lib/screens/staff/staff_dashboard.dart
+// lib/screens/staff/staff_dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/cyberpunk_theme.dart';
@@ -9,14 +9,14 @@ import 'manage_borrowings_screen.dart';
 import 'process_returns_screen.dart';
 import 'staff_statistics_screen.dart';
 
-class StaffDashboard extends StatefulWidget {
-  const StaffDashboard({super.key});
+class StaffDashboardScreen extends StatefulWidget {
+  const StaffDashboardScreen({super.key});
 
   @override
-  State<StaffDashboard> createState() => _StaffDashboardState();
+  State<StaffDashboardScreen> createState() => _StaffDashboardScreenState();
 }
 
-class _StaffDashboardState extends State<StaffDashboard> {
+class _StaffDashboardScreenState extends State<StaffDashboardScreen> {
   final StaffService _staffService = StaffService();
   final AuthService _authService = AuthService();
 
@@ -38,15 +38,65 @@ class _StaffDashboardState extends State<StaffDashboard> {
       final todayReturns = await _staffService.getTodayScheduledReturns();
       final maintenanceAlerts = await _staffService.getMaintenanceAlerts();
 
-      setState(() {
-        _stats = stats;
-        _todayReturns = todayReturns;
-        _maintenanceAlerts = maintenanceAlerts;
-      });
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+          _todayReturns = todayReturns;
+          _maintenanceAlerts = maintenanceAlerts;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading dashboard: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: CyberpunkTheme.deepBlack,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: CyberpunkTheme.primaryPink.withAlpha(100)),
+        ),
+        title: Text(
+          'LOGOUT CONFIRMATION',
+          style: CyberpunkTheme.heading3.copyWith(
+            color: CyberpunkTheme.primaryPink,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: CyberpunkTheme.bodyText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(color: CyberpunkTheme.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'LOGOUT',
+              style: TextStyle(
+                color: CyberpunkTheme.primaryPink,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      await _authService.signOut();
     }
   }
 
@@ -120,6 +170,11 @@ class _StaffDashboardState extends State<StaffDashboard> {
             icon: Icon(Icons.refresh, color: CyberpunkTheme.neonGreen),
             onPressed: _loadDashboardData,
             tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: Icon(Icons.logout, color: CyberpunkTheme.primaryPink),
+            onPressed: _handleLogout,
+            tooltip: 'Logout',
           ),
         ],
       ),

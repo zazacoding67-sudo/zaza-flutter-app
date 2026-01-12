@@ -1,3 +1,4 @@
+// lib/screens/assets_screen.dart - REDESIGNED WITH PINK THEME & CUSTOM RETURN DATE
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,16 +13,41 @@ class AssetsScreen extends StatefulWidget {
   State<AssetsScreen> createState() => _AssetsScreenState();
 }
 
-class _AssetsScreenState extends State<AssetsScreen> {
+class _AssetsScreenState extends State<AssetsScreen>
+    with SingleTickerProviderStateMixin {
   List<Asset> assets = [];
   bool isLoading = true;
   String searchQuery = '';
   String filterStatus = 'All';
+  String filterCategory = 'All';
+  late AnimationController _animController;
+
+  final List<String> categories = [
+    'All',
+    'Computer',
+    'Laptop',
+    'Microphone',
+    'Camera',
+    'Projector',
+    'Audio',
+    'Video',
+  ];
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _loadAssets();
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAssets() async {
@@ -53,14 +79,24 @@ class _AssetsScreenState extends State<AssetsScreen> {
   List<Asset> get filteredAssets {
     var result = assets;
 
-    // Apply status filter
+    // Status filter
     if (filterStatus == 'Available') {
       result = result.where((asset) => asset.isAvailable).toList();
     } else if (filterStatus == 'Borrowed') {
       result = result.where((asset) => !asset.isAvailable).toList();
     }
 
-    // Apply search filter
+    // Category filter
+    if (filterCategory != 'All') {
+      result = result
+          .where(
+            (asset) =>
+                asset.category.toLowerCase() == filterCategory.toLowerCase(),
+          )
+          .toList();
+    }
+
+    // Search filter
     if (searchQuery.isNotEmpty) {
       final lowerQuery = searchQuery.toLowerCase();
       result = result.where((asset) {
@@ -75,64 +111,88 @@ class _AssetsScreenState extends State<AssetsScreen> {
   }
 
   Future<void> _borrowAsset(Asset asset) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // Show borrow dialog with custom return date
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _BorrowRequestDialog(asset: asset),
+    );
 
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+    if (result != null) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      if (!userDoc.exists) {
-        _showError('User data not found');
-        return;
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (!userDoc.exists) {
+          _showError('User data not found');
+          return;
+        }
+
+        final userData = userDoc.data()!;
+        final now = DateTime.now();
+        final returnDate = result['returnDate'] as DateTime;
+        final purpose = result['purpose'] as String;
+        final notes = result['notes'] as String;
+
+        await FirebaseFirestore.instance.collection('borrowings').add({
+          'assetId': asset.id,
+          'assetName': asset.name,
+          'assetCode': asset.assetCode ?? asset.serialNumber,
+          'category': asset.category,
+          'serialNumber': asset.serialNumber,
+          'userId': user.uid,
+          'userName': userData['name'] ?? user.email,
+          'userEmail': user.email,
+          'userStaffId': userData['staffId'] ?? '',
+          'userRole': userData['role'] ?? 'student',
+          'requestedDate': Timestamp.fromDate(now),
+          'requestedReturnDate': Timestamp.fromDate(returnDate),
+          'status': 'pending',
+          'expectedReturnDate': null,
+          'approvedDate': null,
+          'borrowedDate': null,
+          'actualReturnDate': null,
+          'rejectionReason': null,
+          'purpose': purpose,
+          'notes': notes,
+          'createdAt': Timestamp.fromDate(now),
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        _showSuccess('Request submitted! Admin will review within 24 hours.');
+        _loadAssets();
+      } catch (e) {
+        _showError('Error: $e');
+        debugPrint('Error creating borrow request: $e');
       }
-
-      final userData = userDoc.data()!;
-      final now = DateTime.now();
-
-      // FIXED: Include ALL required fields
-      await FirebaseFirestore.instance.collection('borrowings').add({
-        'assetId': asset.id,
-        'assetName': asset.name,
-        'assetCode': asset.assetCode ?? asset.serialNumber,
-        'category': asset.category,
-        'serialNumber': asset.serialNumber,
-        'userId': user.uid,
-        'userName': userData['name'] ?? user.email,
-        'userEmail': user.email,
-        'userStaffId': userData['staffId'] ?? '',
-        'userRole': userData['role'] ?? 'student',
-        'requestedDate': Timestamp.fromDate(now),
-        'status': 'pending',
-        'expectedReturnDate': null,
-        'approvedDate': null,
-        'borrowedDate': null,
-        'actualReturnDate': null,
-        'rejectionReason': null,
-        'purpose': 'General use',
-        'notes': '',
-        'createdAt': Timestamp.fromDate(now),
-        'updatedAt': Timestamp.fromDate(now), // Initialize updatedAt
-      });
-
-      _showSuccess('Borrowing request submitted! Waiting for admin approval.');
-      _loadAssets();
-    } catch (e) {
-      _showError('Error: $e');
-      debugPrint('Error creating borrow request: $e');
     }
   }
 
   void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '✅ $message',
-          style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.rajdhani(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: CyberpunkTheme.accentGreen.withOpacity(0.8),
+        backgroundColor: CyberpunkTheme.neonGreen,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -140,11 +200,24 @@ class _AssetsScreenState extends State<AssetsScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '❌ $message',
-          style: GoogleFonts.rajdhani(fontWeight: FontWeight.w600),
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.rajdhani(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: CyberpunkTheme.primaryPink.withOpacity(0.8),
+        backgroundColor: CyberpunkTheme.primaryPink,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -175,39 +248,120 @@ class _AssetsScreenState extends State<AssetsScreen> {
     return SafeArea(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          // Header - NO GRADIENT to avoid stacking
+          Container(
+            color: CyberpunkTheme.deepBlack,
+            padding: const EdgeInsets.all(20),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Search Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: CyberpunkTheme.surfaceDark,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    style: GoogleFonts.rajdhani(
-                      color: CyberpunkTheme.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search assets...',
-                      hintStyle: GoogleFonts.rajdhani(
-                        color: CyberpunkTheme.textMuted,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: CyberpunkTheme.primaryPink,
-                        size: 20,
-                      ),
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (value) => setState(() => searchQuery = value),
+                Text(
+                  'EXPLORE ASSETS',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFF10F0), // Updated pink
+                    letterSpacing: 2,
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Search Bar - Fixed stacking issue
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A0004), // Updated black
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(
+                        0xFFFF10F0,
+                      ).withOpacity(0.5), // Updated pink
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF10F0).withOpacity(0.2),
+                        blurRadius: 15,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.search,
+                        color: Color(0xFFFF10F0),
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          style: GoogleFonts.rajdhani(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search by name, category, serial...',
+                            hintStyle: GoogleFonts.rajdhani(
+                              color: Colors.white54,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          onChanged: (value) =>
+                              setState(() => searchQuery = value),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Category Filter Chips
+                SizedBox(
+                  height: 40,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+                      final isSelected = filterCategory == category;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(category),
+                          labelStyle: GoogleFonts.rajdhani(
+                            color: isSelected
+                                ? Colors.white
+                                : CyberpunkTheme.textMuted,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() => filterCategory = category);
+                          },
+                          backgroundColor: CyberpunkTheme.surfaceDark,
+                          selectedColor: CyberpunkTheme.primaryPink,
+                          checkmarkColor: Colors.white,
+                          side: BorderSide(
+                            color: isSelected
+                                ? CyberpunkTheme.primaryPink
+                                : CyberpunkTheme.textMuted.withOpacity(0.3),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
                 const SizedBox(height: 12),
 
-                // Filter Chips
+                // Status Filter Chips
                 Row(
                   children: [
                     _buildFilterChip(
@@ -219,13 +373,13 @@ class _AssetsScreenState extends State<AssetsScreen> {
                     _buildFilterChip(
                       'Available',
                       availableCount,
-                      CyberpunkTheme.accentGreen,
+                      CyberpunkTheme.neonGreen,
                     ),
                     const SizedBox(width: 8),
                     _buildFilterChip(
                       'Borrowed',
                       borrowedCount,
-                      CyberpunkTheme.primaryBlue,
+                      CyberpunkTheme.primaryCyan,
                     ),
                   ],
                 ),
@@ -236,40 +390,22 @@ class _AssetsScreenState extends State<AssetsScreen> {
           // Asset List
           Expanded(
             child: isLoading
-                ? const Center(
+                ? Center(
                     child: CircularProgressIndicator(
                       color: CyberpunkTheme.primaryPink,
                     ),
                   )
                 : filteredAssets.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.inventory_2_outlined,
-                          size: 50,
-                          color: CyberpunkTheme.textMuted.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No assets found',
-                          style: GoogleFonts.rajdhani(
-                            color: CyberpunkTheme.textMuted,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? _buildEmptyState()
                 : RefreshIndicator(
                     onRefresh: _loadAssets,
                     color: CyberpunkTheme.primaryPink,
                     child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.all(16),
                       itemCount: filteredAssets.length,
-                      itemBuilder: (context, index) =>
-                          _buildAssetCard(filteredAssets[index]),
+                      itemBuilder: (context, index) {
+                        return _buildAssetCard(filteredAssets[index], index);
+                      },
                     ),
                   ),
           ),
@@ -280,151 +416,464 @@ class _AssetsScreenState extends State<AssetsScreen> {
 
   Widget _buildFilterChip(String label, int count, Color color) {
     final isSelected = filterStatus == label;
-    return GestureDetector(
-      onTap: () => setState(() => filterStatus = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withOpacity(0.2)
-              : CyberpunkTheme.surfaceDark,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? color : CyberpunkTheme.surfaceLight,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.rajdhani(
-                color: isSelected ? color : CyberpunkTheme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => filterStatus = label),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? color.withOpacity(0.2)
+                : CyberpunkTheme.surfaceDark,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? color : color.withOpacity(0.3),
+              width: 2,
             ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
+          ),
+          child: Column(
+            children: [
+              Text(
                 count.toString(),
-                style: GoogleFonts.rajdhani(
+                style: GoogleFonts.orbitron(
                   color: color,
-                  fontSize: 10,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-          ],
+              Text(
+                label.toUpperCase(),
+                style: GoogleFonts.rajdhani(
+                  color: isSelected ? color : CyberpunkTheme.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildAssetCard(Asset asset) {
-    final isAvailable = asset.isAvailable;
-    final color = isAvailable
-        ? CyberpunkTheme.accentGreen
-        : CyberpunkTheme.primaryBlue;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CyberpunkTheme.surfaceDark,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Icon
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              _getCategoryIcon(asset.category),
-              color: color,
-              size: 26,
+          Icon(
+            Icons.search_off,
+            size: 80,
+            color: CyberpunkTheme.textMuted.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'NO ASSETS FOUND',
+            style: GoogleFonts.orbitron(
+              color: CyberpunkTheme.textMuted,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your filters',
+            style: GoogleFonts.rajdhani(
+              color: CyberpunkTheme.textMuted,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(width: 14),
+  Widget _buildAssetCard(Asset asset, int index) {
+    final isAvailable = asset.isAvailable;
+    final color = isAvailable
+        ? CyberpunkTheme.neonGreen
+        : CyberpunkTheme.primaryCyan;
 
-          // Asset Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  asset.name,
-                  style: GoogleFonts.rajdhani(
-                    color: CyberpunkTheme.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${asset.category} • ${asset.assetCode ?? asset.serialNumber}',
-                  style: GoogleFonts.rajdhani(
-                    color: CyberpunkTheme.textMuted,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    asset.status.toUpperCase(),
-                    style: GoogleFonts.rajdhani(
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: CyberpunkTheme.surfaceDark,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.3), width: 2),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 20)],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Icon with glow
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.3),
+                          blurRadius: 15,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _getCategoryIcon(asset.category),
                       color: color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                      size: 32,
+                    ),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Asset Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          asset.name,
+                          style: GoogleFonts.rajdhani(
+                            color: CyberpunkTheme.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          asset.category,
+                          style: GoogleFonts.rajdhani(
+                            color: CyberpunkTheme.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            asset.status.toUpperCase(),
+                            style: GoogleFonts.rajdhani(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Borrow Button (only if available)
+            if (isAvailable)
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      CyberpunkTheme.primaryPink,
+                      CyberpunkTheme.primaryPink.withOpacity(0.8),
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(14),
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _borrowAsset(asset),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(14),
+                      bottomRight: Radius.circular(14),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.add_shopping_cart,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'BORROW THIS ITEM',
+                            style: GoogleFonts.rajdhani(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== BORROW REQUEST DIALOG ====================
+class _BorrowRequestDialog extends StatefulWidget {
+  final Asset asset;
+
+  const _BorrowRequestDialog({required this.asset});
+
+  @override
+  State<_BorrowRequestDialog> createState() => _BorrowRequestDialogState();
+}
+
+class _BorrowRequestDialogState extends State<_BorrowRequestDialog> {
+  DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+  final purposeController = TextEditingController();
+  final notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    purposeController.dispose();
+    notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 60)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: CyberpunkTheme.primaryPink,
+              onPrimary: Colors.white,
+              surface: CyberpunkTheme.surfaceDark,
+              onSurface: CyberpunkTheme.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => selectedDate = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: CyberpunkTheme.deepBlack,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: CyberpunkTheme.primaryPink.withOpacity(0.5),
+          width: 2,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'BORROW REQUEST',
+              style: GoogleFonts.orbitron(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: CyberpunkTheme.primaryPink,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.asset.name,
+              style: GoogleFonts.rajdhani(
+                fontSize: 16,
+                color: CyberpunkTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Return Date Selector
+            InkWell(
+              onTap: _selectDate,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: CyberpunkTheme.surfaceDark,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: CyberpunkTheme.primaryPink.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      color: CyberpunkTheme.primaryPink,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'RETURN DATE',
+                          style: GoogleFonts.rajdhani(
+                            fontSize: 10,
+                            color: CyberpunkTheme.textMuted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                          style: GoogleFonts.orbitron(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: CyberpunkTheme.primaryPink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Purpose Field
+            TextField(
+              controller: purposeController,
+              style: GoogleFonts.rajdhani(color: CyberpunkTheme.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Purpose',
+                labelStyle: GoogleFonts.rajdhani(
+                  color: CyberpunkTheme.textMuted,
+                ),
+                filled: true,
+                fillColor: CyberpunkTheme.surfaceDark,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: CyberpunkTheme.primaryPink.withOpacity(0.3),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Notes Field
+            TextField(
+              controller: notesController,
+              style: GoogleFonts.rajdhani(color: CyberpunkTheme.textPrimary),
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Additional Notes (Optional)',
+                labelStyle: GoogleFonts.rajdhani(
+                  color: CyberpunkTheme.textMuted,
+                ),
+                filled: true,
+                fillColor: CyberpunkTheme.surfaceDark,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: CyberpunkTheme.primaryPink.withOpacity(0.3),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: CyberpunkTheme.textMuted),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'CANCEL',
+                      style: GoogleFonts.rajdhani(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (purposeController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter purpose')),
+                        );
+                        return;
+                      }
+
+                      Navigator.pop(context, {
+                        'returnDate': selectedDate,
+                        'purpose': purposeController.text,
+                        'notes': notesController.text,
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: CyberpunkTheme.primaryPink,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'SUBMIT',
+                      style: GoogleFonts.rajdhani(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-
-          // Borrow Button (only if available)
-          if (isAvailable)
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: CyberpunkTheme.primaryPink,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              onPressed: () => _borrowAsset(asset),
-              child: Text(
-                'Borrow',
-                style: GoogleFonts.rajdhani(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

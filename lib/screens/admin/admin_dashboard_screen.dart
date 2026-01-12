@@ -1,3 +1,4 @@
+// lib/screens/admin/admin_dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,7 +9,7 @@ import 'user_management_screen.dart';
 import 'reports/reports_screen.dart';
 import 'system_settings_screen.dart';
 import 'add_asset_screen.dart';
-import 'pending_requests_screen.dart'; // Import this!
+import 'pending_requests_screen.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -53,8 +54,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading dashboard: $e'),
@@ -62,6 +63,52 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: CyberpunkTheme.deepBlack,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: CyberpunkTheme.primaryPink.withAlpha(100)),
+        ),
+        title: Text(
+          'LOGOUT CONFIRMATION',
+          style: CyberpunkTheme.heading3.copyWith(
+            color: CyberpunkTheme.primaryPink,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to logout of the admin dashboard?',
+          style: CyberpunkTheme.bodyText,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(color: CyberpunkTheme.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'LOGOUT',
+              style: TextStyle(
+                color: CyberpunkTheme.primaryPink,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      await ref.read(authServiceProvider).signOut();
     }
   }
 
@@ -89,9 +136,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              await ref.read(authServiceProvider).signOut();
-            },
+            onPressed: _handleLogout,
           ),
         ],
       ),
